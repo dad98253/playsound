@@ -140,5 +140,10 @@ c_fct.h
 *.ods
 *.xml
 
+jakciesfile
+playsound.sln
+playsound.vcxproj
+playsound.vcxproj.filters
+playsound.vcxproj.user
 
 
