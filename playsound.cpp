@@ -29,6 +29,7 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    mciCallBack(HWND, UINT, WPARAM, LPARAM);
 DWORD MCIClose(MCIDEVICEID wDeviceID);
 void PrintError(LPCTSTR errDesc);
+void showError(DWORD dwError);
 
 int jackiesfile = 916;
 int filecount = 0;
@@ -36,7 +37,7 @@ int breaknow = 0;
 UINT TimmerID = NULL;
 UINT nID120SecondEvent = 1;
 HWND hMyWnd = NULL;
-int keepPlaying = 1;
+int keepPlaying = 0;
 MCIDEVICEID wDeviceID;
 wchar_t foundPath[2048];
 
@@ -147,6 +148,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     hMyWnd = hWnd;
+    DWORD opReturn = 0;
     switch (message)
     {
     case WM_COMMAND:
@@ -161,8 +163,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
             case   ID_FILE_PLAY:
                 // set up our window display timer
-                TimmerID = SetTimer(hWnd, nID120SecondEvent, 1200 * 1000, NULL);
-                playme();
+                if (keepPlaying) {
+#ifdef DEBUG
+                    PrintError(TEXT("Timer still running"));
+#endif
+                }
+                else {
+                    TimmerID = SetTimer(hWnd, nID120SecondEvent, 1200 * 1000, NULL);
+                    keepPlaying = 1;
+                    playme();
+                }
                 break;
 
             case IDM_EXIT:
@@ -186,6 +196,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         if (wParam != nID120SecondEvent) return FALSE;
         keepPlaying = 0;
         KillTimer(hWnd, TimmerID);
+#ifdef DEBUG
+        MessageBeep(MB_ICONEXCLAMATION);
+#endif
         return TRUE;
 
     case MM_MCINOTIFY:
@@ -201,7 +214,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 #ifdef DEBUG
             PrintError(TEXT("Playback of the audio file concluded successfully."));
 #endif
-            MCIClose(wDeviceID);
+            opReturn = MCIClose(wDeviceID);
+            if (opReturn) {
+                DWORD dwError = 0;
+                showError(dwError);
+                //         char *ResErrorMsg = MCIMsgErr();
+            }
             if(keepPlaying) playme();
             break;
         case MCI_NOTIFY_SUPERSEDED:
@@ -275,9 +293,17 @@ MCIDEVICEID MCIOpen(LPCTSTR strPath)
 DWORD MCIClose(MCIDEVICEID wDeviceID)
 {
     MCI_GENERIC_PARMS lpClose;
+    DWORD opReturn;
     lpClose.dwCallback = (DWORD)hMyWnd;
 //    MCI_CLOSE_PARMS lpClose;
-    return mciSendCommand( wDeviceID, MCI_CLOSE, MCI_WAIT,(DWORD)(LPMCI_GENERIC_PARMS)&lpClose);
+    opReturn = mciSendCommand(wDeviceID, MCI_CLOSE, MCI_WAIT, (DWORD)(LPMCI_GENERIC_PARMS)&lpClose);
+//    return mciSendCommand( wDeviceID, MCI_CLOSE, MCI_WAIT,(DWORD)(LPMCI_GENERIC_PARMS)&lpClose);
+    if (!opReturn) return(0);
+
+    showError(opReturn);
+    //         char *ResErrorMsg = MCIMsgErr();
+    return (-1);
+
 }
 DWORD MCISeek(MCIDEVICEID wDeviceID, int sec)
 {
@@ -335,12 +361,16 @@ bool ListDirectoryContents(const wchar_t* sDir)
                 if (filecount == jackiesfile) {
                     breaknow = 1;
                     wcscpy(foundPath, sPath);
-                    return false;
+//                    FindClose(hFind); //Always, Always, clean things up!
+//                    return false;
+                    break;
                 }
             }
+            if (breaknow)break;
         }
     } while (FindNextFile(hFind, &fdFile)); //Find the next file.
 
+//    if (!breaknow)FindClose(hFind); //Always, Always, clean things up!
     FindClose(hFind); //Always, Always, clean things up!
 
     return true;
@@ -410,9 +440,9 @@ int playme()
     }
     else
     {
-        if (ReadFile(hFile, chBuffer, BUFSIZE, &dwBytesRead, NULL))
+        if (ReadFile(hFile, chBuffer, BUFSIZE-1, &dwBytesRead, NULL))
         {
-            sscanf(chBuffer,"%i", &jackiesfile);
+            if(dwBytesRead)sscanf(chBuffer,"%i", &jackiesfile);
             sprintf(chBuffer, "%i\n", jackiesfile + 1);
             SetFilePointer(hFile,0,NULL,FILE_BEGIN);
             dwBytesRead = strlen(chBuffer);
@@ -446,7 +476,10 @@ int playme()
     strcat(mbstr, "\\\\TURK\\dad\\hdb2\\hdb2\\Bible stuff\\NIV\\");
     err = mbstowcs_s(&pReturnValue,wfile,sizeInWords,mbstr,count);
 
-    ListDirectoryContents(wfile);
+    wcscpy(foundPath, L"");
+    breaknow = 0;
+    filecount = 0;
+    if(!ListDirectoryContents(wfile))return(0);
 
 
     wDeviceID = MCIOpen((LPCTSTR)foundPath);  //Save DeviceID
@@ -475,87 +508,3 @@ int playme()
 
     return 0;
 }
-
-
-//--------------------------------------------------------------------------;
-//
-//  BOOL MciAppHandleNotify
-//
-//  Description:
-//      This function handles displaying the notification message from
-//      commands sent with the 'notify' option.
-//
-//  Arguments:
-//      HWND hwnd: Handle to main window.
-//
-//      UINT fuNotify: Notification flags (wParam) from MM_MCINOTIFY message.
-//
-//      UINT uId: Device id sending notification.
-//
-//  Return (BOOL):
-//      Always returns TRUE.
-//
-//  History:
-//       2/ 7/93    created.
-//
-//--------------------------------------------------------------------------;
-#define FNGLOBAL    FAR PASCAL
-#define APP_MAX_STRING_RC_CHARS     512
-#define IDS_MCI_NOTIFY_SUCCESSFUL   225
-#define IDS_MCI_NOTIFY_SUPERSEDED   226
-#define IDS_MCI_NOTIFY_ABORTED      227
-#define IDS_MCI_NOTIFY_FAILURE      228
-#define IDS_MCI_NOTIFY_UNKNOWN      229
-
-BOOL FNGLOBAL MciAppHandleNotify
-(
-    HWND            hwnd,
-    UINT            fuNotify,
-    UINT            uId
-)
-{
-    static TCHAR    szFormatNotify[] = TEXT("Notify(%u,%u): %s");
-    static TCHAR    szDBFormatNotify[] = TEXT("    MCI Notify: Id=%u, Flag(%u)='%s'");
-
-    HWND        hwndNotify;
-    TCHAR       ach[APP_MAX_STRING_RC_CHARS];
-    UINT        uIds;
-
-    //
-    //
-    //
-    //
-    switch (fuNotify)
-    {
-    case MCI_NOTIFY_SUCCESSFUL:
-        uIds = IDS_MCI_NOTIFY_SUCCESSFUL;
-        break;
-
-    case MCI_NOTIFY_SUPERSEDED:
-        uIds = IDS_MCI_NOTIFY_SUPERSEDED;
-        break;
-
-    case MCI_NOTIFY_ABORTED:
-        uIds = IDS_MCI_NOTIFY_ABORTED;
-        break;
-
-    case MCI_NOTIFY_FAILURE:
-        uIds = IDS_MCI_NOTIFY_FAILURE;
-        break;
-
-    default:
-        uIds = IDS_MCI_NOTIFY_UNKNOWN;
-        break;
-    }
-
- /*   LoadString(ghinst, uIds, ach, SIZEOF(ach));
-    hwndNotify = GetDlgItem(hwnd, IDD_APP_TEXT_NOTIFY);
-    AppSetWindowText(hwndNotify, szFormatNotify, uId, fuNotify, (LPSTR)ach);
-
-    //
-    //  !!! UNICODE !!!
-    //
-    MciAppDebugLog(szDBFormatNotify, uId, fuNotify, (LPSTR)ach);
-    */
-    return (TRUE);
-} // MciAppHandleNotify()
