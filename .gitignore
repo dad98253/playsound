@@ -145,5 +145,6 @@ playsound.sln
 playsound.vcxproj
 playsound.vcxproj.filters
 playsound.vcxproj.user
-
+.vs
+x64
 
