@@ -19,18 +19,6 @@
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
-        "Entry"
-        {
-        "MsmKey" = "8:_B57B7D1C9133D168D15B82EB4901CCD4"
-        "OwnerKey" = "8:_97C90AC85A174512801B5D5FD49E3FD2"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_BDF4C7AF3891C9886AA59C8E5B7ACA77"
-        "OwnerKey" = "8:_97C90AC85A174512801B5D5FD49E3FD2"
-        "MsmSig" = "8:_UNDEFINED"
-        }
     }
     "Configurations"
     {
@@ -75,7 +63,7 @@
         "PackageFilesAs" = "3:2"
         "PackageFileSize" = "3:-2147483648"
         "CabType" = "3:1"
-        "Compression" = "3:2"
+        "Compression" = "3:3"
         "SignOutput" = "11:FALSE"
         "CertificateFile" = "8:"
         "PrivateKeyFile" = "8:"
@@ -123,46 +111,6 @@
         }
         "File"
         {
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_B57B7D1C9133D168D15B82EB4901CCD4"
-            {
-            "SourcePath" = "8:VCRUNTIME140D.dll"
-            "TargetName" = "8:VCRUNTIME140D.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_C3A922C939894D17A6EAB41268AC0741"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
-            "IsolateTo" = "8:"
-            }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_BDF4C7AF3891C9886AA59C8E5B7ACA77"
-            {
-            "SourcePath" = "8:ucrtbased.dll"
-            "TargetName" = "8:ucrtbased.dll"
-            "Tag" = "8:"
-            "Folder" = "8:_C3A922C939894D17A6EAB41268AC0741"
-            "Condition" = "8:"
-            "Transitive" = "11:FALSE"
-            "Vital" = "11:TRUE"
-            "ReadOnly" = "11:FALSE"
-            "Hidden" = "11:FALSE"
-            "System" = "11:FALSE"
-            "Permanent" = "11:FALSE"
-            "SharedLegacy" = "11:FALSE"
-            "PackageAs" = "3:1"
-            "Register" = "3:1"
-            "Exclude" = "11:FALSE"
-            "IsDependency" = "11:TRUE"
-            "IsolateTo" = "8:"
-            }
         }
         "FileType"
         {
@@ -229,20 +177,20 @@
         "Product"
         {
         "Name" = "8:Microsoft Visual Studio"
-        "ProductName" = "8:PlayMeSetup"
-        "ProductCode" = "8:{3E6D04F4-1648-4682-91D1-9EDBA64C0E99}"
-        "PackageCode" = "8:{20C3194A-FAE3-48A9-9674-E857F46899DC}"
+        "ProductName" = "8:PlayMe"
+        "ProductCode" = "8:{61D7E911-6D12-4D0B-AF33-35B5FCF51C92}"
+        "PackageCode" = "8:{07A8D1D5-6766-4885-A45D-BCA7DC20B086}"
         "UpgradeCode" = "8:{656A583F-7E59-419A-B129-5C9F4CA0DE1D}"
         "AspNetVersion" = "8:4.0.30319.0"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:TRUE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:TRUE"
-        "ProductVersion" = "8:1.0.0"
+        "ProductVersion" = "8:1.0.1"
         "Manufacturer" = "8:Island Christian Academy"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:http://www.islandchristianacademy.com/"
-        "Title" = "8:PlayMeSetup"
+        "Title" = "8:PlayMe"
         "Subject" = "8:"
         "ARPCONTACT" = "8:dad"
         "Keywords" = "8:"
@@ -810,7 +758,7 @@
         {
             "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_97C90AC85A174512801B5D5FD49E3FD2"
             {
-            "SourcePath" = "8:..\\Debug\\playsound.exe"
+            "SourcePath" = "8:..\\Release\\playsound.exe"
             "TargetName" = "8:"
             "Tag" = "8:"
             "Folder" = "8:_C3A922C939894D17A6EAB41268AC0741"
