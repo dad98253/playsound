@@ -26,12 +26,16 @@ ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    mciCallBack(HWND, UINT, WPARAM, LPARAM);
+//INT_PTR CALLBACK    mciCallBack(HWND, UINT, WPARAM, LPARAM);
 DWORD MCIClose(MCIDEVICEID wDeviceID);
 void PrintError(LPCTSTR errDesc);
 void showError(DWORD dwError);
+DWORD MCIPause(MCIDEVICEID wDeviceID);
+DWORD MCIResume(MCIDEVICEID wDeviceID);
+void GetConfig();
+void WriteConfig(int chapter);
 
-int jackiesfile = 916;
+int jackiesfile = 0;
 int filecount = 0;
 int breaknow = 0;
 UINT TimmerID = NULL;
@@ -40,6 +44,8 @@ HWND hMyWnd = NULL;
 int keepPlaying = 0;
 MCIDEVICEID wDeviceID;
 wchar_t foundPath[2048];
+wchar_t dbloc[2048];
+int paused = 0;
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -122,7 +128,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    hInst = hInstance; // Store instance handle in our global variable
 
    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+      CW_USEDEFAULT, CW_USEDEFAULT, 500, 250, nullptr, nullptr, hInstance, nullptr);
 
    if (!hWnd)
    {
@@ -163,16 +169,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
             case   ID_FILE_PLAY:
                 // set up our window display timer
-                if (keepPlaying) {
+                if (paused == 0) {
+                    if (keepPlaying) {
 #ifdef DEBUG
-                    PrintError(TEXT("Timer still running"));
+                        PrintError(TEXT("Timer still running"));
 #endif
+                    }
+                    else {
+                        TimmerID = SetTimer(hWnd, nID120SecondEvent, 1200 * 1000, NULL);
+                        keepPlaying = 1;
+                        playme();
+                    }
                 }
-                else {
-                    TimmerID = SetTimer(hWnd, nID120SecondEvent, 1200 * 1000, NULL);
-                    keepPlaying = 1;
-                    playme();
-                }
+                break;
+
+            case   ID_FILE_PAUSE:
+                MCIPause(wDeviceID);
+                paused = 1;
+                break;
+
+            case   ID_FILE_CONTINUE:
+                MCIResume(wDeviceID);
+                paused = 0;
                 break;
 
             case IDM_EXIT:
@@ -214,13 +232,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 #ifdef DEBUG
             PrintError(TEXT("Playback of the audio file concluded successfully."));
 #endif
-            opReturn = MCIClose(wDeviceID);
-            if (opReturn) {
-                DWORD dwError = 0;
-                showError(dwError);
-                //         char *ResErrorMsg = MCIMsgErr();
+            if (paused == 0) {
+                opReturn = MCIClose(wDeviceID);
+                if (opReturn) {
+                    DWORD dwError = 0;
+                    showError(dwError);
+                    //         char *ResErrorMsg = MCIMsgErr();
+                }
+                if (keepPlaying) playme();
             }
-            if(keepPlaying) playme();
             break;
         case MCI_NOTIFY_SUPERSEDED:
             PrintError(TEXT("Another command requested notification from this audio device."));
@@ -234,6 +254,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         KillTimer(hWnd, TimmerID);
         PostQuitMessage(0);
         break;
+
+    case WM_CREATE:
+        GetConfig();
+        break;
+
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
@@ -290,6 +315,7 @@ MCIDEVICEID MCIOpen(LPCTSTR strPath)
         //         char *ResErrorMsg = MCIMsgErr();
     return -1;
 }
+
 DWORD MCIClose(MCIDEVICEID wDeviceID)
 {
     MCI_GENERIC_PARMS lpClose;
@@ -305,12 +331,14 @@ DWORD MCIClose(MCIDEVICEID wDeviceID)
     return (-1);
 
 }
+
 DWORD MCISeek(MCIDEVICEID wDeviceID, int sec)
 {
     MCI_SEEK_PARMS SeekParms;
     SeekParms.dwTo = (sec) * 1000;
     return mciSendCommand(wDeviceID, MCI_SEEK, MCI_TO, (DWORD)(LPVOID)&SeekParms);
 }
+
 DWORD MCIPlay(MCIDEVICEID wDeviceID)
 {
     MCI_PLAY_PARMS mciPP;
@@ -318,12 +346,42 @@ DWORD MCIPlay(MCIDEVICEID wDeviceID)
     mciPP.dwCallback = (DWORD)hMyWnd;
     return mciSendCommand(wDeviceID, MCI_PLAY, MCI_NOTIFY , (DWORD)&mciPP);
 }
+
+DWORD MCIPause(MCIDEVICEID wDeviceID)
+{
+    MCI_GENERIC_PARMS mciPause;
+    DWORD opReturn;
+    //    mciPP.dwCallback = (DWORD_PTR)mciCallBack;
+    mciPause.dwCallback = (DWORD)hMyWnd;
+    opReturn = mciSendCommand(wDeviceID, MCI_PAUSE, 0, (DWORD)&mciPause);
+    if (!opReturn) return(0);
+
+    showError(opReturn);
+    //         char *ResErrorMsg = MCIMsgErr();
+    return (-1);
+}
+
+DWORD MCIResume(MCIDEVICEID wDeviceID)
+{
+    MCI_GENERIC_PARMS mciPause;
+    DWORD opReturn;
+    //    mciPP.dwCallback = (DWORD_PTR)mciCallBack;
+    mciPause.dwCallback = (DWORD)hMyWnd;
+    opReturn = mciSendCommand(wDeviceID, MCI_RESUME, 0, (DWORD)&mciPause);
+    if (!opReturn) return(0);
+
+    showError(opReturn);
+    //         char *ResErrorMsg = MCIMsgErr();
+    return (-1);
+}
+
 DWORD MCIPlayFrom(MCIDEVICEID wDeviceID, int sec)
 {
     MCI_PLAY_PARMS play;
     play.dwFrom = sec * 1000;//Play From sec*1000 ms
     return mciSendCommand(wDeviceID, MCI_PLAY, MCI_NOTIFY | MCI_FROM | MCI_WAIT, (DWORD)&play);
 }
+
 bool ListDirectoryContents(const wchar_t* sDir)
 {
     WIN32_FIND_DATA fdFile;
@@ -417,6 +475,7 @@ int playme()
     BOOL fSuccess = FALSE;
     DWORD dwRetVal = 0;
     UINT uRetVal = 0;
+    DWORD opReturn = 0;
 
     DWORD dwBytesRead = 0;
     DWORD dwBytesWritten = 0;
@@ -426,6 +485,9 @@ int playme()
 #define BUFSIZE 250
     char  chBuffer[BUFSIZE];
 
+    GetConfig();
+    WriteConfig(jackiesfile + 1);
+/*
     hFile = CreateFile(szFileName,             // name of the read
         (GENERIC_READ | GENERIC_WRITE),           // open for reading and writing
         FILE_SHARE_READ,        // share
@@ -472,10 +534,15 @@ int playme()
         return 0;
     }
 
-    errno_t err;
-    strcat(mbstr, "\\\\TURK\\dad\\hdb2\\hdb2\\Bible stuff\\NIV\\");
-    err = mbstowcs_s(&pReturnValue,wfile,sizeInWords,mbstr,count);
+    */
 
+    errno_t err;
+//    strcat(mbstr, "\\\\TURK\\dad\\hdb2\\hdb2\\Bible stuff\\NIV\\");
+//    strcat(mbstr, dbloc);
+    
+//    err = mbstowcs_s(&pReturnValue,wfile,sizeInWords,mbstr,count);
+
+    wcscpy(wfile, dbloc);
     wcscpy(foundPath, L"");
     breaknow = 0;
     filecount = 0;
@@ -483,7 +550,7 @@ int playme()
 
 
     wDeviceID = MCIOpen((LPCTSTR)foundPath);  //Save DeviceID
-    DWORD opReturn = 0;
+    opReturn = 0;
     if (wDeviceID != -1)
     {
         //MCI_SET_PARMS mciSet;
@@ -500,11 +567,136 @@ int playme()
             showError(dwError);
    //         char *ResErrorMsg = MCIMsgErr();
         }
-
+//        MCIPause(wDeviceID);
        // opReturn = MCIPlayFrom(wDeviceID, 30);
 
     }
     return (int)opReturn;
 
     return 0;
+}
+
+void GetConfig()
+{
+
+    HKEY key;
+    DWORD lptumble;
+    LSTATUS lResult;
+    //DWORD lpdw;
+
+    if ((lResult  = RegOpenKeyEx(HKEY_CURRENT_USER,
+        L"Software\\Island Christian Academy\\PlayMe", //lpctstr
+        0,                      //reserved
+        KEY_QUERY_VALUE,
+        &key)) == ERROR_SUCCESS)
+    {
+        DWORD dsize = sizeof(jackiesfile);
+        DWORD dwtype = 0;
+        LSTATUS StatusReturn;
+
+        StatusReturn = RegQueryValueEx(key, L"Chapter", NULL, &dwtype,
+            (BYTE*)&jackiesfile, &dsize);
+
+        if (StatusReturn) jackiesfile = 915;
+
+        //Finished with key
+        RegCloseKey(key);
+    }
+    else //key isn't there yet--set defaults
+    {
+        if (lResult == ERROR_FILE_NOT_FOUND) {
+            PrintError(TEXT("Key not found.\n"));
+            return ;
+        }
+        else {
+            PrintError(TEXT("Error opening key.\n"));
+            return ;
+        }
+        //jackiesfile = 915;
+    }
+
+    if ((lResult = RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+        L"Software\\Island Christian Academy\\PlayMe", //lpctstr
+        0,                      //reserved
+        KEY_QUERY_VALUE,
+        &key)) == ERROR_SUCCESS)
+    {
+        DWORD dsize = sizeof(dbloc);
+        DWORD dwtype = 0;
+        LSTATUS StatusReturn;
+
+        StatusReturn = RegQueryValueEx(key, L"DataBaseLocation", NULL, &dwtype,
+            (BYTE*)&dbloc, &dsize);
+        if (StatusReturn) wcscpy(dbloc, L"\\\\TURK\\dad\\hdb2\\hdb2\\Bible stuff\\NIV\\");
+
+        //Finished with key
+        RegCloseKey(key);
+    }
+    else //key isn't there yet--set defaults
+    {
+        if (lResult == ERROR_FILE_NOT_FOUND) {
+            PrintError(TEXT("Key not found.\n"));
+            return;
+        }
+        else {
+            PrintError(TEXT("Error opening key.\n"));
+            return;
+        }
+
+  //      wcscpy(dbloc, L"\\\\TURK\\dad\\hdb2\\hdb2\\Bible stuff\\NIV\\");
+    }
+
+}
+
+void WriteConfig(int chapter)
+{
+
+    HKEY key;
+    DWORD lpdw;
+    DWORD lptumble;
+    LSTATUS lResult;
+
+    if ((lResult = RegCreateKeyEx(HKEY_CURRENT_USER,
+        L"Software\\Island Christian Academy\\PlayMe", //lpctstr
+        0,                      //reserved
+        (LPWSTR)L"",                     //ptr to null-term string specifying the object type of this key
+        REG_OPTION_NON_VOLATILE,
+        KEY_WRITE,
+        NULL,
+        &key,
+        &lpdw)) == ERROR_SUCCESS)
+
+    {
+
+        if ((lResult = RegSetValueEx(key, L"chapter", 0, REG_DWORD,
+            (const BYTE *)&chapter, (DWORD)sizeof(chapter) )) == ERROR_SUCCESS) {
+
+        }
+        else {
+            if (lResult == ERROR_FILE_NOT_FOUND) {
+                PrintError(TEXT("Key not found.\n"));
+                return;
+            }
+            else {
+                PrintError(TEXT("Error opening key.\n"));
+                return;
+            }
+
+        }
+
+        //Finished with keys
+        RegCloseKey(key);
+    }
+    else {
+        if (lResult == ERROR_FILE_NOT_FOUND) {
+            PrintError(TEXT("Key not found.\n"));
+            return;
+        }
+        else {
+            PrintError(TEXT("Error opening key.\n"));
+            return;
+        }
+
+    }
+    
 }
