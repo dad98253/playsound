@@ -297,14 +297,6 @@
                                         }
                                         "Values"
                                         {
-                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_E2C3AE642A844A88AF000C75C7440027"
-                                            {
-                                            "Name" = "8:Chapter"
-                                            "Condition" = "8:"
-                                            "Transitive" = "11:FALSE"
-                                            "ValueTypes" = "3:3"
-                                            "Value" = "3:916"
-                                            }
                                         }
                                     }
                                 }
