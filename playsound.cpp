@@ -35,7 +35,7 @@ DWORD MCIResume(MCIDEVICEID wDeviceID);
 void GetConfig();
 void WriteConfig(int chapter);
 
-int jackiesfile = 0;
+int jackiesfile = 916;
 int filecount = 0;
 int breaknow = 0;
 UINT TimmerID = NULL;
@@ -417,7 +417,7 @@ bool ListDirectoryContents(const wchar_t* sDir)
             else {
                 filecount++;
                 if (filecount == jackiesfile) {
-                    breaknow = 1;
+                        breaknow = 1;
                     wcscpy(foundPath, sPath);
 //                    FindClose(hFind); //Always, Always, clean things up!
 //                    return false;
@@ -486,7 +486,7 @@ int playme()
     char  chBuffer[BUFSIZE];
 
     GetConfig();
-    WriteConfig(jackiesfile + 1);
+    WriteConfig(jackiesfile%1175 + 1);
 /*
     hFile = CreateFile(szFileName,             // name of the read
         (GENERIC_READ | GENERIC_WRITE),           // open for reading and writing
@@ -546,7 +546,9 @@ int playme()
     wcscpy(foundPath, L"");
     breaknow = 0;
     filecount = 0;
-    if(!ListDirectoryContents(wfile))return(0);
+    if (!ListDirectoryContents(wfile)) {
+        return(0);
+    }
 
 
     wDeviceID = MCIOpen((LPCTSTR)foundPath);  //Save DeviceID
@@ -602,14 +604,15 @@ void GetConfig()
         //Finished with key
         RegCloseKey(key);
     }
-    else //key isn't there yet--set defaults
+    else //key isn't there yet -- normal condition for first time execution by a user -- set defaults
     {
         if (lResult == ERROR_FILE_NOT_FOUND) {
-            PrintError(TEXT("Key not found.\n"));
-            return ;
+#ifdef DEBUG
+            PrintError(TEXT("Chapter Key not found.\n"));
+#endif
         }
         else {
-            PrintError(TEXT("Error opening key.\n"));
+            PrintError(TEXT("Error opening chapter key.\n"));
             return ;
         }
         //jackiesfile = 915;
@@ -635,11 +638,11 @@ void GetConfig()
     else //key isn't there yet--set defaults
     {
         if (lResult == ERROR_FILE_NOT_FOUND) {
-            PrintError(TEXT("Key not found.\n"));
+            PrintError(TEXT("Audio files location not specified - program not properly installed.\n"));
             return;
         }
         else {
-            PrintError(TEXT("Error opening key.\n"));
+            PrintError(TEXT("Error opening database location key.\n"));
             return;
         }
 
@@ -674,11 +677,11 @@ void WriteConfig(int chapter)
         }
         else {
             if (lResult == ERROR_FILE_NOT_FOUND) {
-                PrintError(TEXT("Key not found.\n"));
+                PrintError(TEXT("Chapter Key not found - save failed.\n"));
                 return;
             }
             else {
-                PrintError(TEXT("Error opening key.\n"));
+                PrintError(TEXT("Error saving chapter key.\n"));
                 return;
             }
 
@@ -689,11 +692,11 @@ void WriteConfig(int chapter)
     }
     else {
         if (lResult == ERROR_FILE_NOT_FOUND) {
-            PrintError(TEXT("Key not found.\n"));
+            PrintError(TEXT("User Key not found - creation failed.\n"));
             return;
         }
         else {
-            PrintError(TEXT("Error opening key.\n"));
+            PrintError(TEXT("Error creating user key.\n"));
             return;
         }
 
