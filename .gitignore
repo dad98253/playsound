@@ -147,4 +147,5 @@ playsound.vcxproj.filters
 playsound.vcxproj.user
 .vs
 x64
-
+PlayMeSetup/Release
+PlayMeSetup/Debug
