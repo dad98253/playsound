@@ -66,7 +66,7 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
                         MCIPause(wDeviceID);
                         paused = 1;
                     } else {
-                        TimmerID = SetTimer(hWnd, nID120SecondEvent, 1200 * 1000, NULL);
+                        TimmerID = SetTimer(hDlg, nID120SecondEvent, 1200 * 1000, NULL);
                         keepPlaying = 1;
                         playme();
                     }
@@ -106,7 +106,6 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
         if (wParam != nID120SecondEvent) return FALSE;
         keepPlaying = 0;
         KillTimer(hWnd, TimmerID);
-        SendMessage(GetDlgItem(hDlg, ID_FILE_PLAY), WM_SETTEXT, 0, (LPARAM)_T("Play"));
 #ifdef DEBUG
         MessageBeep(MB_ICONEXCLAMATION);
 #endif
@@ -135,7 +134,11 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
                     showError(dwError);
                     //         char *ResErrorMsg = MCIMsgErr();
                 }
-                if (keepPlaying) playme();
+                if (keepPlaying) {
+                    playme();
+                } else {
+                    SendMessage(GetDlgItem(hDlg, ID_FILE_PLAY), WM_SETTEXT, 0, (LPARAM)_T("Play"));
+                }
             }
             return TRUE;
             break;
