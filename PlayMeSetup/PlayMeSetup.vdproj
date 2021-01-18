@@ -15,6 +15,12 @@
     {
         "Entry"
         {
+        "MsmKey" = "8:_8D36D313D8534222A91828D133ACC4B5"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_97C90AC85A174512801B5D5FD49E3FD2"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -111,6 +117,26 @@
         }
         "File"
         {
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_8D36D313D8534222A91828D133ACC4B5"
+            {
+            "SourcePath" = "8:..\\ica-logo.ico"
+            "TargetName" = "8:ica-logo.ico"
+            "Tag" = "8:"
+            "Folder" = "8:_C3A922C939894D17A6EAB41268AC0741"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
         }
         "FileType"
         {
@@ -179,7 +205,7 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:PlayMe"
         "ProductCode" = "8:{61D7E911-6D12-4D0B-AF33-35B5FCF51C92}"
-        "PackageCode" = "8:{B154CF4C-9CA7-4630-B883-B440658615BF}"
+        "PackageCode" = "8:{1E6FB869-9160-4718-BBA9-7337A7B03F95}"
         "UpgradeCode" = "8:{656A583F-7E59-419A-B129-5C9F4CA0DE1D}"
         "AspNetVersion" = "8:4.0.30319.0"
         "RestartWWWService" = "11:FALSE"
@@ -196,7 +222,7 @@
         "Keywords" = "8:"
         "ARPCOMMENTS" = "8:Program to play audio bible"
         "ARPURLINFOABOUT" = "8:http://www.islandchristianacademy.com/"
-        "ARPPRODUCTICON" = "8:"
+        "ARPPRODUCTICON" = "8:_8D36D313D8534222A91828D133ACC4B5"
         "ARPIconIndex" = "3:0"
         "SearchPath" = "8:"
         "UseSystemSearchPath" = "11:TRUE"
