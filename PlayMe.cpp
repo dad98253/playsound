@@ -28,7 +28,10 @@ extern HWND hWnd;
 extern HINSTANCE hInst;
 extern HWND MasterWindowHandle;
 extern INT_PTR CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+extern bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles);
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+
+extern wchar_t dbloc[2048];
 
 
 int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE h0, LPTSTR lpCmdLine, int nCmdShow)
@@ -36,6 +39,8 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE h0, LPTSTR lpCmdLine, int nC
     HWND hDlg;
     MSG msg;
     BOOL ret;
+    wchar_t wfile[250];
+    wchar_t foundPath[2048];
 #if _MSC_VER > 1500
 #ifdef DEBUG
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
@@ -45,6 +50,11 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE h0, LPTSTR lpCmdLine, int nC
     hInst = hInstance;
     SetThreadName(-1, (char*)"PlayMe");
     GetConfig();
+    wcscpy(wfile, dbloc);
+    wcscpy(foundPath, L"");
+    if (!LoadDirectoryContents(wfile, AUDIOFILES) ) {
+        return(0);
+    }
     InitCommonControls();
 
     hDlg = CreateDialogParam(hInst, MAKEINTRESOURCE(IDD_MAIN), 0, MainFrm, 0);

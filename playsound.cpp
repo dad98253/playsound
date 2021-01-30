@@ -12,10 +12,12 @@
 #include <tchar.h>
 
 #include "framework.h"
+#define MAINDEFS
 #include "playsound.h"
 #include "resource.h"
 
 #define MAX_LOADSTRING 100
+
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
@@ -31,6 +33,11 @@ DWORD MCIPause(MCIDEVICEID wDeviceID);
 DWORD MCIResume(MCIDEVICEID wDeviceID);
 void GetConfig();
 void WriteConfig(int chapter);
+bool LoadDirectoryContents(const wchar_t* sDir, int AudioOrText);
+bool LoadSubDirectoryContents(const wchar_t* sDir, int * chapterindex, int booknumber, int AudioFiles);
+int parseadname(char * scratchstring, char ** bookname, int * booknumber);
+bool FindDirectoryContents();
+void cleanupheap();
 
 int jackiesfile = 916;
 int filecount = 0;
@@ -179,6 +186,7 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
 
     case WM_DESTROY:
         KillTimer(hWnd, TimmerID);
+        cleanupheap();
         PostQuitMessage(0);
         return (INT_PTR)TRUE;
 
@@ -384,6 +392,7 @@ bool ListDirectoryContents(const wchar_t* sDir)
     return true;
 }
 
+
 LPCTSTR ErrorMessage(DWORD error)
 {
     LPVOID lpMsgBuf;
@@ -431,13 +440,14 @@ int playme()
     DWORD dwBytesWritten = 0;
 
     GetConfig();
-    WriteConfig(jackiesfile % 1175 + 1);
+    WriteConfig(jackiesfile % TOTNUMCHAPSP1);
 
     wcscpy(wfile, dbloc);
     wcscpy(foundPath, L"");
     breaknow = 0;
     filecount = 0;
-    if (!ListDirectoryContents(wfile)) {
+//   if (!ListDirectoryContents(wfile)) {
+    if (!FindDirectoryContents()) {
         return(0);
     }
 
@@ -450,13 +460,26 @@ int playme()
         if (opReturn) {
             DWORD dwError = 0;
             showError(dwError);
-   //         char *ResErrorMsg = MCIMsgErr();
+            //         char *ResErrorMsg = MCIMsgErr();
         }
-
     }
+    LPCSTR lpTitleString;
+    char* tempstr;
+    tempstr = (char*)malloc(300);
+    char* presentBook;
+    int presentChapter;
+    int chapterIndex;
+    chapterIndex = (jackiesfile - 1) % TOTNUMCHAPS;
+    presentBook = (*(ChapterData + chapterIndex))->Bookname;
+    presentChapter = (*(ChapterData + chapterIndex))->ChapterNumber;
+    sprintf(tempstr, "PlayMe - %s   Chapter %d", presentBook, presentChapter);
+    lpTitleString = tempstr;
+    SetWindowTextA( hMyWnd, lpTitleString);
+    free(tempstr);
+
     return (int)opReturn;
 
-    return 0;
+//    return 0; // dead code??
 }
 
 void GetConfig()
@@ -560,4 +583,277 @@ void WriteConfig(int chapter)
     }
 }
 
+bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
+{
+    WIN32_FIND_DATA fdFile;
+    HANDLE hFind = NULL;
 
+    wchar_t sPath[2048];
+
+    if (breaknow) return false;
+    //Specify a file mask. *.* = We want everything!
+    wsprintf(sPath, L"%s\\*.*", sDir);
+
+    if ((hFind = FindFirstFile(sPath, &fdFile)) == INVALID_HANDLE_VALUE)
+    {
+        return false;
+    }
+    int bookIndex = -1;
+    int chapterIndex = -1;
+    if (AudioFiles) {
+        Booknames = (char**)calloc(67,sizeof(char*));
+        ChapterData = (ChapterListStructure**)calloc(TOTNUMCHAPSP1,sizeof(ChapterListStructure*));
+        AudioFolderData = (AudioFoldersStructure**)calloc(67,sizeof(AudioFoldersStructure*));
+    }
+    else {
+        TextFolderData = (TextFoldersStructure**)calloc(67,sizeof(TextFoldersStructure*));
+    }
+
+    do
+    {
+        //Find first file will always return "."
+        //    and ".." as the first two directories.
+        if (wcscmp(fdFile.cFileName, L".") != 0
+            && wcscmp(fdFile.cFileName, L"..") != 0)
+        {
+            //Build up our file path using the passed in
+            //  [sDir] and the file/foldername we just found:
+            wsprintf(sPath, L"%s\\%s", sDir, fdFile.cFileName);
+            //Is the entity a File or Folder?
+            if (fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            {
+                bookIndex++;
+                char* scratchstring;
+                char* bookname;
+                int booknumber;
+                scratchstring = (char*)calloc((unsigned int)(wcslen(sPath) + 30), (unsigned int)sizeof(*scratchstring));
+                wcstombs(scratchstring, sPath, wcslen(sPath) + 1);
+                if (parseadname(scratchstring, &bookname, &booknumber)) {
+                    PrintError(TEXT("parse of directory name failed"));
+                    return(false);
+                }
+                if (AudioFiles) {
+                    if (*(Booknames + booknumber) != NULL) {
+                        PrintError(TEXT("duplicate book name found in audio directory"));
+                        return(false);
+                    }
+                    *(Booknames + booknumber) = (char*)calloc(strlen(bookname)+1, sizeof(char *));
+                    strcpy(*(Booknames + booknumber), bookname);
+                    *(AudioFolderData + booknumber) = (AudioFoldersStructure*)calloc( 1, sizeof(AudioFoldersStructure));
+                    AudioFoldersStructure *tempAF;
+                    tempAF = *(AudioFolderData + booknumber);
+                    tempAF->BookNumber = booknumber;
+                    tempAF->NumberOfChapters = -1;
+                    tempAF->Bookname = *(Booknames + booknumber);
+                    tempAF->BookDirectoryPath = (char*)malloc(strlen(scratchstring)+1);
+                    strcpy(tempAF->BookDirectoryPath, scratchstring);
+                    tempAF->FirstChapterDataPointer = NULL;
+                } else {
+                    if (*(Booknames + booknumber) != NULL) {
+                        PrintError(TEXT("empty book name found while processing text directory"));
+                        return(false);
+                    }
+                    *(TextFolderData + booknumber) = (TextFoldersStructure*)calloc(1, sizeof(TextFoldersStructure));
+                    TextFoldersStructure* tempTF;
+                    tempTF = *(TextFolderData + booknumber);
+                    tempTF->BookNumber = booknumber;
+                    tempTF->NumberOfChapters = -1;
+                    tempTF->Bookname = *(Booknames + booknumber);
+                    tempTF->BookDirectoryPath = (char*)malloc(strlen(scratchstring) + 1);
+                    strcpy(tempTF->BookDirectoryPath, scratchstring);
+                    tempTF->FirstChapterDataPointer = NULL;
+
+                }
+
+                free(scratchstring);
+                LoadSubDirectoryContents(sPath, &chapterIndex, booknumber, AudioFiles);
+            }
+            else {
+                // sould be no files in this folder - skip it
+                continue;
+                /*               filecount++;
+                               if (filecount == jackiesfile) {
+                                   breaknow = 1;
+                                   wcscpy(foundPath, sPath);
+                                   //                    FindClose(hFind); //Always, Always, clean things up!
+                                   //                    return false;
+                                   break;
+                               } */
+            }
+            //           if (breaknow)break;
+        }
+    } while (FindNextFile(hFind, &fdFile)); //Find the next file.
+
+//    if (!breaknow)FindClose(hFind); //Always, Always, clean things up!
+    FindClose(hFind); //Always, Always, clean things up!
+
+    return true;
+}
+
+int parseadname(char* scratchstring, char** bookname, int* booknumber) {
+    char* pch;
+    char* pch2;
+    pch = strrchr(scratchstring, '\\');
+    if (pch == NULL) return(1);
+    pch2 = strchr(pch+1, ' ');
+    if (pch2 == NULL) return(2);
+    if (pch == pch2) return(3); // should be imposible
+    if (((pch2 - pch - 1) > 7) || ((pch2 - pch - 1) < 0) ) return(4);
+    int ret = sscanf(pch+1, "%d", booknumber);
+    if ( ret != 1) return(5);
+    *bookname = strchr(pch + 1, ' ');
+    if (*bookname == NULL) return(6);
+    (*bookname)++;
+    return(0);
+}
+
+bool LoadSubDirectoryContents(const wchar_t* sDir, int* chapterindex, int booknumber, int AudioFiles) {
+    WIN32_FIND_DATA fdFile;
+    HANDLE hFind = NULL;
+
+    wchar_t sPath[2048];
+    int numChaptersInBook = 0;
+
+    if (breaknow) return false;
+    //Specify a file mask. *.* = We want everything!
+    wsprintf(sPath, L"%s\\*.*", sDir);
+
+    if ((hFind = FindFirstFile(sPath, &fdFile)) == INVALID_HANDLE_VALUE)
+    {
+        return false;
+    }
+/*
+    if (AudioFiles) {
+        Booknames = (char**)calloc(67, sizeof(char*));
+        ChapterData = (ChapterListStructure**)calloc(3000, sizeof(ChapterListStructure*));
+        AudioFolderData = (AudioFoldersStructure**)calloc(67, sizeof(AudioFoldersStructure*));
+    }
+    else {
+        TextFolderData = (TextFoldersStructure**)calloc(67, sizeof(TextFoldersStructure*));
+    }
+*/
+    do
+    {
+        //Find first file will always return "."
+        //    and ".." as the first two directories.
+        if (wcscmp(fdFile.cFileName, L".") != 0
+            && wcscmp(fdFile.cFileName, L"..") != 0)
+        {
+            //Build up our file path using the passed in
+            //  [sDir] and the file/foldername we just found:
+            wsprintf(sPath, L"%s\\%s", sDir, fdFile.cFileName);
+            //Is the entity a File or Folder?
+            if ( !(fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) )
+            {
+                numChaptersInBook++;
+                (*chapterindex)++;
+                char* scratchstring;
+                char* bookname;
+                bookname = *(Booknames + booknumber);
+                scratchstring = (char*)calloc((unsigned int)(wcslen(sPath) + 30), (unsigned int)sizeof(*scratchstring));
+                wcstombs(scratchstring, sPath, wcslen(sPath) + 1);
+                if (AudioFiles) {
+                    *(ChapterData + *chapterindex) = (ChapterListStructure*)calloc(1, sizeof(ChapterListStructure));
+                    ChapterListStructure* tempCS;
+                    tempCS = *(ChapterData + *chapterindex);
+                    tempCS->GlobalChapterIndex = *chapterindex;
+                    tempCS->ChapterNumber = numChaptersInBook;
+                    tempCS->Bookname = bookname;
+                    tempCS->AudioFilePath = (char*)malloc(strlen(scratchstring) + 1);
+                    strcpy(tempCS->AudioFilePath, scratchstring);
+                    tempCS->TextFilePath = NULL;
+                    tempCS->NextChapter = NULL;
+                    tempCS->PreviousChapter = NULL;
+                }
+                else {
+                    ChapterListStructure* tempCS;
+                    tempCS = *(ChapterData + *chapterindex);
+                    tempCS->TextFilePath = (char*)malloc(strlen(scratchstring) + 1);
+                    strcpy(tempCS->TextFilePath, scratchstring);
+                }
+
+                free(scratchstring);
+            }
+            else {
+                // sould be no directories in this folder - skip it
+                continue;
+                /*               filecount++;
+                               if (filecount == jackiesfile) {
+                                   breaknow = 1;
+                                   wcscpy(foundPath, sPath);
+                                   //                    FindClose(hFind); //Always, Always, clean things up!
+                                   //                    return false;
+                                   break;
+                               } */
+            }
+            //           if (breaknow)break;
+        }
+    } while (FindNextFile(hFind, &fdFile)); //Find the next file.
+
+//    if (!breaknow)FindClose(hFind); //Always, Always, clean things up!
+    FindClose(hFind); //Always, Always, clean things up!
+
+    return true;
+}
+
+bool FindDirectoryContents() {
+    ChapterListStructure* tempCS;
+    tempCS = *(ChapterData + jackiesfile - 1);
+    int num_chars = MultiByteToWideChar(CP_UTF8, 0, tempCS->AudioFilePath, strlen(tempCS->AudioFilePath), NULL, 0);
+    MultiByteToWideChar(CP_UTF8, 0, tempCS->AudioFilePath, strlen(tempCS->AudioFilePath), foundPath, num_chars);
+    foundPath[num_chars] = L'\0';
+
+    //    wcscpy(foundPath, sPath);
+    return(true);
+}
+
+void cleanupheap() {
+    int i;
+    ChapterListStructure* tempCS;
+    AudioFoldersStructure* tempAF;
+    TextFoldersStructure* tempTF;
+    if (ChapterData != NULL) {
+        for (i = 0; i < TOTNUMCHAPSP1; i++) {
+            if (*(ChapterData + i) != NULL) {
+                tempCS = *(ChapterData + i);
+                if (tempCS->AudioFilePath != NULL)free(tempCS->AudioFilePath);
+                if (tempCS->TextFilePath != NULL)free(tempCS->TextFilePath);
+                free(tempCS);
+            }
+        }
+        free(ChapterData);
+    }
+
+    if (AudioFolderData != NULL) {
+        for (i = 0; i < 67; i++) {
+            if (*(AudioFolderData + i) != NULL) {
+                tempAF = *(AudioFolderData + i);
+                if (tempAF->BookDirectoryPath != NULL)free(tempAF->BookDirectoryPath);
+                free(tempAF);
+            }
+        }
+        free(AudioFolderData);
+    }
+
+    if (TextFolderData != NULL) {
+        for (i = 0; i < 67; i++) {
+            if (*(TextFolderData + i) != NULL) {
+                tempTF = *(TextFolderData + i);
+                if (tempTF->BookDirectoryPath != NULL)free(tempTF->BookDirectoryPath);
+                free(tempTF);
+            }
+        }
+        free(TextFolderData);
+    }
+
+    if (Booknames != NULL) {
+        for (i = 0; i < 67; i++) {
+            if (*(Booknames + i) != NULL) {
+                free(*(Booknames + i));
+            }
+        }
+        free(Booknames);
+    }
+
+    return;
+}
