@@ -205,6 +205,9 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
     case WM_DESTROY:
         KillTimer(hWnd, TimmerID);
         cleanupheap();
+#ifdef DEBUG
+        fclose(fdb);
+#endif
         PostQuitMessage(0);
         return (INT_PTR)TRUE;
 
@@ -546,6 +549,7 @@ int GetConfig(int typeGet)
     getFont = (typeGet >> 1) % 2;
     getSize = (typeGet >> 2) % 2;
     getDbLoc = (typeGet >> 3) % 2;
+    int iret = 0;
 
     if (getChapt) {
         // get the current chapter number
@@ -569,11 +573,11 @@ int GetConfig(int typeGet)
 #ifdef DEBUG
                 PrintError(TEXT("Chapter Key not found.\n"));
 #endif
-                return(1);
+                iret += 1;
             }
             else {
                 PrintError(TEXT("Error opening chapter key.\n"));
-                return(1);
+                iret += 2;
             }
         }
     }
@@ -616,11 +620,11 @@ int GetConfig(int typeGet)
 #ifdef DEBUG
                 PrintError(TEXT("Chapter Key not found.\n"));
 #endif
-                return(1);
+                iret += 10;
             }
             else {
                 PrintError(TEXT("Error opening chapter key.\n"));
-                return(1);
+                iret += 20;
             }
         }
     }
@@ -705,11 +709,11 @@ int GetConfig(int typeGet)
 #ifdef DEBUG
                 PrintError(TEXT("font Key not found.\n"));
 #endif
-                return(1);
+//                iret += 100;
             }
             else {
                 PrintError(TEXT("Error opening font key.\n"));
-                return(1);
+                iret += 200;
             }
         }
     }
@@ -740,16 +744,16 @@ int GetConfig(int typeGet)
             //key isn't there yet--set defaults
             if (lResult == ERROR_FILE_NOT_FOUND) {
                 PrintError(TEXT("Audio files location not specified - program not properly installed.\n"));
-                return(1);
+                iret += 1000;
             }
             else {
                 PrintError(TEXT("Error opening database location key.\n"));
-                return(1);
+                iret += 2000;
             }
         }
     }
 
-    return(0);
+    return(iret);
 }
 
 
@@ -1145,6 +1149,10 @@ bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
     wchar_t sPath[2048];
 
     if (breaknow) return false;
+#ifdef DEBUG
+    fprintf(fdb, "in LoadDirectoryContents sDir=\"%S\", AudioFiles=%i\n", sDir, AudioFiles);
+#endif
+
     //Specify a file mask. *.* = We want everything!
     wsprintf(sPath, L"%s\\*.*", sDir);
 
@@ -1170,6 +1178,9 @@ bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
         if (wcscmp(fdFile.cFileName, L".") != 0
             && wcscmp(fdFile.cFileName, L"..") != 0)
         {
+#ifdef DEBUG
+            fprintf(fdb, "in LoadDirectoryContents, found \"%S\"\n", fdFile.cFileName);
+#endif
             //Build up our file path using the passed in
             //  [sDir] and the file/foldername we just found:
             wsprintf(sPath, L"%s\\%s", sDir, fdFile.cFileName);
@@ -1183,7 +1194,12 @@ bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
                 scratchstring = (char*)calloc((unsigned int)(wcslen(sPath) + 30), (unsigned int)sizeof(*scratchstring));
                 wcstombs(scratchstring, sPath, wcslen(sPath) + 1);
                 if (parseadname(scratchstring, &bookname, &booknumber)) {
-                    PrintError(TEXT("parse of directory name failed"));
+                    wchar_t sTemp[2048];
+                    wsprintf(sTemp, L"parse of ind=%i,\"%S\"\\\"%S\" directory name failed", bookIndex, sDir, fdFile.cFileName);
+                    PrintError(sTemp);
+#ifdef DEBUG
+                    fprintf(fdb,"parse of \"%S\" failed, AudioFiles=%i\n", sDir, AudioFiles);
+#endif
                     return(false);
                 }
                 if (AudioFiles == AUDIOFILES) {
@@ -1261,6 +1277,10 @@ bool LoadSubDirectoryContents(const wchar_t* sDir, int* chapterindex, int booknu
     int numChaptersInBook = 0;
 
     if (breaknow) return false;
+#ifdef DEBUG
+    fprintf(fdb, "in LoadSubDirectoryContents, sDir=\"%S\", AudioFiles=%i\n", sDir,AudioFiles);
+#endif
+
     //Specify a file mask. *.* = We want everything!
     wsprintf(sPath, L"%s\\*.*", sDir);
 
@@ -1276,6 +1296,9 @@ bool LoadSubDirectoryContents(const wchar_t* sDir, int* chapterindex, int booknu
         if (wcscmp(fdFile.cFileName, L".") != 0
             && wcscmp(fdFile.cFileName, L"..") != 0)
         {
+#ifdef DEBUG
+            fprintf(fdb, "in LoadSubDirectoryContents, found \"%S\"\n", fdFile.cFileName);
+#endif
             //Build up our file path using the passed in
             //  [sDir] and the file/foldername we just found:
             wsprintf(sPath, L"%s\\%s", sDir, fdFile.cFileName);

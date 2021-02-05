@@ -67,10 +67,18 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE h0, LPTSTR lpCmdLine, int nC
 #endif	// DEBUG
 #endif // _MSC_VER > 1500
 
+#ifdef DEBUG
+    fdb = fopen("debug.log", "w");
+#endif
     hInst = hInstance;
     globalnCmdShow = nCmdShow;
     SetThreadName(-1, (char*)"PlayMe");
-    GetConfig(15);
+    int iret;
+    if ((iret = GetConfig(15))) {
+#ifdef DEBUG
+        fprintf(fdb,"GetConfig failed, iret = %i\n",iret);
+#endif        
+    }
     wcscpy(wfile, dbloc);
     wcscpy(foundPath, L"");
     if (!LoadDirectoryContents(wfile, AUDIOFILES)) {

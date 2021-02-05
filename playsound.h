@@ -82,3 +82,8 @@ EXTERN LOGFONT lfold;
 EXTERN int lfset INITIZERO;
 EXTERN BOOL FontChanged INITBOOLFALSE;
 
+#ifdef DEBUG
+EXTERN FILE *fdb INITNULL;
+#endif
+
+
