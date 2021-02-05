@@ -21,8 +21,7 @@
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
-WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
-WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+
 int playme();
 
 BOOL  CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
@@ -31,13 +30,19 @@ void PrintError(LPCTSTR errDesc);
 void showError(DWORD dwError);
 DWORD MCIPause(MCIDEVICEID wDeviceID);
 DWORD MCIResume(MCIDEVICEID wDeviceID);
-void GetConfig();
+int GetConfig(int typeGet);
 void WriteConfig(int chapter);
 bool LoadDirectoryContents(const wchar_t* sDir, int AudioOrText);
 bool LoadSubDirectoryContents(const wchar_t* sDir, int * chapterindex, int booknumber, int AudioFiles);
 int parseadname(char * scratchstring, char ** bookname, int * booknumber);
 bool FindDirectoryContents();
 void cleanupheap();
+extern BOOL InitInstance(HINSTANCE, int);
+extern ATOM MyRegisterClass(HINSTANCE hInstance);
+extern TCHAR sztext[100000];
+extern TCHAR* lpsztext;
+extern char text[100000];
+extern char* ptext;
 
 int jackiesfile = 916;
 int filecount = 0;
@@ -48,9 +53,13 @@ HWND hMyWnd = NULL;
 int keepPlaying = 0;
 MCIDEVICEID wDeviceID;
 wchar_t foundPath[2048];
+char * foundTextPath;
 wchar_t dbloc[2048];
+wchar_t textdbloc[2048];
 int paused = 0;
 HWND hWnd = NULL;
+int globalnCmdShow;
+
 
 INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -75,6 +84,10 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
                     } else {
                         TimmerID = SetTimer(hDlg, nID120SecondEvent, 1200 * 1000, NULL);
                         keepPlaying = 1;
+                        // Perform text window initialization:
+                        if (!InitInstance(hInst, globalnCmdShow)) {
+                            PrintError(TEXT("InitInstance failed."));
+                        }
                         playme();
                     }
                 } else {
@@ -173,6 +186,11 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
         else {
             PrintError(TEXT("LoadImage failed"));
         }
+ //       MyRegisterClass(hInstance);
+ //       if (!InitInstance(hInst, globalnCmdShow)) {
+ //           PrintError(TEXT("InitInstance failed."));
+ //       }
+
     }
     return TRUE;
 
@@ -438,8 +456,9 @@ int playme()
 
     DWORD dwBytesRead = 0;
     DWORD dwBytesWritten = 0;
+    FILE* pFile;
 
-    GetConfig();
+    GetConfig(1);
     WriteConfig(jackiesfile % TOTNUMCHAPSP1);
 
     wcscpy(wfile, dbloc);
@@ -450,6 +469,30 @@ int playme()
     if (!FindDirectoryContents()) {
         return(0);
     }
+    // find the text
+    if (foundTextPath != NULL) {
+        pFile = fopen(foundTextPath, "r");
+        if (pFile != NULL)
+        {
+            lpsztext = sztext;
+            while (fgets(ptext, 100000, pFile) != NULL) {
+                int lxx = strlen(ptext);
+                ptext[lxx - 1] = '\r';
+                ptext[lxx] = '\n';
+                ptext[lxx + 1] = '\000';
+                lxx = strlen(ptext);
+                ptext = ptext + lxx;
+            }
+            fclose(pFile);
+            ptext = text;
+            int num_chars = MultiByteToWideChar(CP_UTF8, 0, ptext, strlen(ptext), NULL, 0);
+            MultiByteToWideChar(CP_UTF8, 0, ptext, strlen(ptext), lpsztext, num_chars);
+            lpsztext[num_chars] = L'\0';
+        }
+    }
+    // display the text
+    SetDlgItemText( hTextWnd, ID_EDITCHILD, lpsztext);
+//    SendMessage(hwndEdit, WM_SETTEXT, 0, (LPARAM)lpsztext);
 
     wDeviceID = MCIOpen((LPCTSTR)foundPath);  //Save DeviceID
     opReturn = 0;
@@ -475,6 +518,9 @@ int playme()
     sprintf(tempstr, "PlayMe - %s   Chapter %d", presentBook, presentChapter);
     lpTitleString = tempstr;
     SetWindowTextA( hMyWnd, lpTitleString);
+    sprintf(tempstr, "%s   Chapter %d", presentBook, presentChapter);
+    lpTitleString = tempstr;
+    SetWindowTextA( hTextWnd, lpTitleString);
     free(tempstr);
 
     return (int)opReturn;
@@ -482,103 +528,611 @@ int playme()
 //    return 0; // dead code??
 }
 
-void GetConfig()
+int GetConfig(int typeGet)
 {
     HKEY key;
     LSTATUS lResult;
+    DWORD dwtype = REG_NONE;
+    DWORD dsize;
+    LSTATUS StatusReturn;
+    FontChanged = FALSE;
+    WinSizeIsSaved = FALSE;
+    WinLocIsSaved = FALSE;
+    int getChapt;
+    int getFont;
+    int getSize;
+    int getDbLoc;
+    getChapt = typeGet % 2;
+    getFont = (typeGet >> 1) % 2;
+    getSize = (typeGet >> 2) % 2;
+    getDbLoc = (typeGet >> 3) % 2;
 
-    if ((lResult  = RegOpenKeyEx(HKEY_CURRENT_USER,
-        L"Software\\Island Christian Academy\\PlayMe", //lpctstr
-        0,                      //reserved
-        KEY_QUERY_VALUE,
-        &key)) == ERROR_SUCCESS) {
-        DWORD dsize = sizeof(jackiesfile);
-        DWORD dwtype = 0;
-        LSTATUS StatusReturn;
+    if (getChapt) {
+        // get the current chapter number
+        if ((lResult = RegOpenKeyEx(HKEY_CURRENT_USER,
+            L"Software\\Island Christian Academy\\PlayMe", //lpctstr
+            0,                      //reserved
+            KEY_QUERY_VALUE,
+            &key)) == ERROR_SUCCESS) {
+            dsize = sizeof(jackiesfile);
 
-        StatusReturn = RegQueryValueEx(key, L"Chapter", NULL, &dwtype,
-            (BYTE*)&jackiesfile, &dsize);
-
-        if (StatusReturn) jackiesfile = 915;
-
-        //Finished with key
-        RegCloseKey(key);
-    } else {
-        //key isn't there yet -- normal condition for first time execution by a user -- set defaults
-        if (lResult == ERROR_FILE_NOT_FOUND) {
+            // get chapter
+            StatusReturn = RegQueryValueEx(key, L"Chapter", NULL, &dwtype,
+                (BYTE*)&jackiesfile, &dsize);
+            if (StatusReturn) jackiesfile = 915;
+            //Finished with key
+            RegCloseKey(key);
+        }
+        else {
+            //key isn't there yet -- normal condition for first time execution by a user -- set defaults
+            if (lResult == ERROR_FILE_NOT_FOUND) {
 #ifdef DEBUG
-            PrintError(TEXT("Chapter Key not found.\n"));
+                PrintError(TEXT("Chapter Key not found.\n"));
 #endif
-        } else {
-            PrintError(TEXT("Error opening chapter key.\n"));
-            return ;
+                return(1);
+            }
+            else {
+                PrintError(TEXT("Error opening chapter key.\n"));
+                return(1);
+            }
         }
     }
 
-    if ((lResult = RegOpenKeyEx(HKEY_LOCAL_MACHINE,
-        L"Software\\Island Christian Academy\\PlayMe", //lpctstr
-        0,                      //reserved
-        KEY_QUERY_VALUE,
-        &key)) == ERROR_SUCCESS)
-    {
-        DWORD dsize = sizeof(dbloc);
-        DWORD dwtype = 0;
-        LSTATUS StatusReturn;
+    if (getSize) {
+        // get the current window size
+        if ((lResult = RegOpenKeyEx(HKEY_CURRENT_USER,
+            L"Software\\Island Christian Academy\\PlayMe", //lpctstr
+            0,                      //reserved
+            KEY_QUERY_VALUE,
+            &key)) == ERROR_SUCCESS) {
 
-        StatusReturn = RegQueryValueEx(key, L"DataBaseLocation", NULL, &dwtype,
-            (BYTE*)&dbloc, &dsize);
-        if (StatusReturn) wcscpy(dbloc, L"\\\\TURK\\dad\\hdb2\\hdb2\\Bible stuff\\NIV\\");
+            // get width
+            dsize = sizeof(width);
+            StatusReturn = RegQueryValueEx(key, L"width", NULL, &dwtype,(BYTE*)&width, &dsize);
+            // get heigth
+            dsize = sizeof(heigth);
+            StatusReturn = StatusReturn | RegQueryValueEx(key, L"heigth", NULL, &dwtype, (BYTE*)&heigth, &dsize);
+            if (!StatusReturn) WinSizeIsSaved = TRUE;
+            // get left
+            dsize = sizeof(WinLocSave.left);
+            StatusReturn = RegQueryValueEx(key, L"left", NULL, &dwtype, (BYTE*)&(WinLocSave.left), &dsize);
+            // get top
+            dsize = sizeof(WinLocSave.top);
+            StatusReturn = StatusReturn | RegQueryValueEx(key, L"top", NULL, &dwtype, (BYTE*)&(WinLocSave.top), &dsize);
+            // get right
+            dsize = sizeof(WinLocSave.right);
+            StatusReturn = StatusReturn | RegQueryValueEx(key, L"right", NULL, &dwtype, (BYTE*)&(WinLocSave.right), &dsize);
+            // get bottom
+            dsize = sizeof(WinLocSave.bottom);
+            StatusReturn = StatusReturn | RegQueryValueEx(key, L"bottom", NULL, &dwtype, (BYTE*)&(WinLocSave.bottom), &dsize);
+            if (!StatusReturn) WinLocIsSaved = TRUE;
 
-        //Finished with key
-        RegCloseKey(key);
-    } else {
-        //key isn't there yet--set defaults
-        if (lResult == ERROR_FILE_NOT_FOUND) {
-            PrintError(TEXT("Audio files location not specified - program not properly installed.\n"));
-            return;
-        } else {
-            PrintError(TEXT("Error opening database location key.\n"));
-            return;
+            //Finished with key
+            RegCloseKey(key);
+        }
+        else {
+            //key isn't there yet -- normal condition for first time execution by a user -- set defaults
+            if (lResult == ERROR_FILE_NOT_FOUND) {
+#ifdef DEBUG
+                PrintError(TEXT("Chapter Key not found.\n"));
+#endif
+                return(1);
+            }
+            else {
+                PrintError(TEXT("Error opening chapter key.\n"));
+                return(1);
+            }
         }
     }
+
+    if (getFont) {
+        // get the font settings
+        if ((lResult = RegOpenKeyEx(HKEY_CURRENT_USER,
+            L"Software\\Island Christian Academy\\PlayMe\\font", //lpctstr
+            0,                      //reserved
+            KEY_QUERY_VALUE,
+            &key)) == ERROR_SUCCESS) {
+            /*
+            typedef struct tagLOGFONTW
+            {
+                LONG      lfHeight;
+                LONG      lfWidth;
+                LONG      lfEscapement;
+                LONG      lfOrientation;
+                LONG      lfWeight;
+                BYTE      lfItalic;
+                BYTE      lfUnderline;
+                BYTE      lfStrikeOut;
+                BYTE      lfCharSet;
+                BYTE      lfOutPrecision;
+                BYTE      lfClipPrecision;
+                BYTE      lfQuality;
+                BYTE      lfPitchAndFamily;
+                WCHAR     lfFaceName[LF_FACESIZE];
+            } LOGFONTW
+            */
+            dsize = sizeof(lfold.lfFaceName);
+            dwtype = REG_NONE;
+            DWORD tempdword;
+
+            // get font
+            StatusReturn = RegQueryValueEx(key, L"lfFaceName", NULL, &dwtype,
+                (BYTE*)&lfold.lfFaceName, &dsize);
+            if (!StatusReturn) {
+                lfset = 1;
+                dsize = sizeof(lfold.lfHeight);
+                StatusReturn = StatusReturn | RegQueryValueEx(key, L"lfHeight", NULL, &dwtype, (BYTE*)&lfold.lfHeight, &dsize);
+                dsize = sizeof(lfold.lfWidth);
+                StatusReturn = StatusReturn | RegQueryValueEx(key, L"lfWidth", NULL, &dwtype, (BYTE*)&lfold.lfWidth, &dsize);
+                dsize = sizeof(lfold.lfEscapement);
+                StatusReturn = StatusReturn | RegQueryValueEx(key, L"lfEscapement", NULL, &dwtype, (BYTE*)&lfold.lfEscapement, &dsize);
+                dsize = sizeof(lfold.lfOrientation);
+                StatusReturn = StatusReturn | RegQueryValueEx(key, L"lfOrientation", NULL, &dwtype, (BYTE*)&lfold.lfOrientation, &dsize);
+                dsize = sizeof(lfold.lfWeight);
+                StatusReturn = StatusReturn | RegQueryValueEx(key, L"lfWeight", NULL, &dwtype, (BYTE*)&lfold.lfWeight, &dsize);
+                dsize = sizeof(tempdword);
+                StatusReturn = StatusReturn | RegQueryValueEx(key, L"lfItalic", NULL, &dwtype, (BYTE*)&tempdword, &dsize);
+                lfold.lfItalic = (BYTE)tempdword;
+                dsize = sizeof(tempdword);
+                StatusReturn = StatusReturn | RegQueryValueEx(key, L"lfUnderline", NULL, &dwtype, (BYTE*)&tempdword, &dsize);
+                lfold.lfUnderline = (BYTE)tempdword;
+                dsize = sizeof(tempdword);
+                StatusReturn = StatusReturn | RegQueryValueEx(key, L"lfStrikeOut", NULL, &dwtype, (BYTE*)&tempdword, &dsize);
+                lfold.lfStrikeOut = (BYTE)tempdword;
+                dsize = sizeof(tempdword);
+                StatusReturn = StatusReturn | RegQueryValueEx(key, L"lfCharSet", NULL, &dwtype, (BYTE*)&tempdword, &dsize);
+                lfold.lfCharSet = (BYTE)tempdword;
+                dsize = sizeof(tempdword);
+                StatusReturn = StatusReturn | RegQueryValueEx(key, L"lfOutPrecision", NULL, &dwtype, (BYTE*)&tempdword, &dsize);
+                lfold.lfOutPrecision = (BYTE)tempdword;
+                dsize = sizeof(tempdword);
+                StatusReturn = StatusReturn | RegQueryValueEx(key, L"lfClipPrecision", NULL, &dwtype, (BYTE*)&tempdword, &dsize);
+                lfold.lfClipPrecision = (BYTE)tempdword;
+                dsize = sizeof(tempdword);
+                StatusReturn = StatusReturn | RegQueryValueEx(key, L"lfQuality", NULL, &dwtype, (BYTE*)&tempdword, &dsize);
+                lfold.lfQuality = (BYTE)tempdword;
+                dsize = sizeof(tempdword);
+                StatusReturn = StatusReturn | RegQueryValueEx(key, L"lfPitchAndFamily", NULL, &dwtype, (BYTE*)&tempdword, &dsize);
+                lfold.lfPitchAndFamily = (BYTE)tempdword;
+                if (!StatusReturn) FontChanged = TRUE;
+            }
+            //Finished with key
+            RegCloseKey(key);
+        }
+        else {
+            //key isn't there yet -- normal condition for first time execution by a user -- set defaults
+            if (lResult == ERROR_FILE_NOT_FOUND) {
+#ifdef DEBUG
+                PrintError(TEXT("font Key not found.\n"));
+#endif
+                return(1);
+            }
+            else {
+                PrintError(TEXT("Error opening font key.\n"));
+                return(1);
+            }
+        }
+    }
+
+    if (getDbLoc) {
+        // get the database locations
+        if ((lResult = RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+            L"Software\\Island Christian Academy\\PlayMe", //lpctstr
+            0,                      //reserved
+            KEY_QUERY_VALUE,
+            &key)) == ERROR_SUCCESS)
+        {
+
+            dsize = sizeof(dbloc);
+            DWORD dtsize = sizeof(textdbloc);
+
+            StatusReturn = RegQueryValueEx(key, L"DataBaseLocation", NULL, &dwtype,
+                (BYTE*)&dbloc, &dsize);
+            if (StatusReturn) wcscpy(dbloc, L"\\\\TURK\\dad\\hdb2\\hdb2\\Bible stuff\\NIV\\");
+            StatusReturn = RegQueryValueEx(key, L"TextFileLocation", NULL, &dwtype,
+                (BYTE*)&textdbloc, &dtsize);
+            if (StatusReturn) wcscpy(textdbloc, L"\\\\TURK\\dad\\hdb2\\hdb2\\Bible stuff\\NIVtext\\");
+
+            //Finished with key
+            RegCloseKey(key);
+        }
+        else {
+            //key isn't there yet--set defaults
+            if (lResult == ERROR_FILE_NOT_FOUND) {
+                PrintError(TEXT("Audio files location not specified - program not properly installed.\n"));
+                return(1);
+            }
+            else {
+                PrintError(TEXT("Error opening database location key.\n"));
+                return(1);
+            }
+        }
+    }
+
+    return(0);
 }
+
 
 void WriteConfig(int chapter)
 {
     HKEY key;
     DWORD lpdw;
     LSTATUS lResult;
+    DWORD tempdword;
 
-    if ((lResult = RegCreateKeyEx(HKEY_CURRENT_USER,
-        L"Software\\Island Christian Academy\\PlayMe", //lpctstr
-        0,                      //reserved
-        (LPWSTR)L"",                     //ptr to null-term string specifying the object type of this key
-        REG_OPTION_NON_VOLATILE,
-        KEY_WRITE,
-        NULL,
-        &key,
-        &lpdw)) == ERROR_SUCCESS) {
-        if ((lResult = RegSetValueEx(key, L"chapter", 0, REG_DWORD, (const BYTE *)&chapter, (DWORD)sizeof(chapter) )) == ERROR_SUCCESS) {
+    if (chapter > -1) {
+        // set chapter
+        if ((lResult = RegCreateKeyEx(HKEY_CURRENT_USER,
+            L"Software\\Island Christian Academy\\PlayMe", //lpctstr
+            0,                      //reserved
+            (LPWSTR)L"",                     //ptr to null-term string specifying the object type of this key
+            REG_OPTION_NON_VOLATILE,
+            KEY_WRITE,
+            NULL,
+            &key,
+            &lpdw)) == ERROR_SUCCESS) {
+            if ((lResult = RegSetValueEx(key, L"chapter", 0, REG_DWORD, (const BYTE*)&chapter, (DWORD)sizeof(chapter))) == ERROR_SUCCESS) {
 
+            } else {
+                if (lResult == ERROR_FILE_NOT_FOUND) {
+                    PrintError(TEXT("Chapter Key not found - save failed.\n"));
+                    return;
+                }
+                else {
+                    PrintError(TEXT("Error saving chapter key.\n"));
+                    return;
+                }
+
+            }
+            //Finished with keys
+            RegCloseKey(key);
         } else {
             if (lResult == ERROR_FILE_NOT_FOUND) {
-                PrintError(TEXT("Chapter Key not found - save failed.\n"));
-                return;
-            } else {
-                PrintError(TEXT("Error saving chapter key.\n"));
+                PrintError(TEXT("User Key not found - creation failed.\n"));
                 return;
             }
-
+            else {
+                PrintError(TEXT("Error creating user key.\n"));
+                return;
+            }
         }
-        //Finished with keys
-        RegCloseKey(key);
     } else {
-        if (lResult == ERROR_FILE_NOT_FOUND) {
-            PrintError(TEXT("User Key not found - creation failed.\n"));
-            return;
+
+        // save window size
+        if ((lResult = RegCreateKeyEx(HKEY_CURRENT_USER,
+            L"Software\\Island Christian Academy\\PlayMe", //lpctstr
+            0,                      //reserved
+            (LPWSTR)L"",                     //ptr to null-term string specifying the object type of this key
+            REG_OPTION_NON_VOLATILE,
+            KEY_WRITE,
+            NULL,
+            &key,
+            &lpdw)) == ERROR_SUCCESS) {
+
+            if (WinSizeIsSaved) {
+                if ((lResult = RegSetValueEx(key, L"width", 0, REG_DWORD, (const BYTE*)&width, (DWORD)sizeof(width))) == ERROR_SUCCESS) {
+
+                }
+                else {
+                    if (lResult == ERROR_FILE_NOT_FOUND) {
+                        PrintError(TEXT("Window width Key not found - save failed.\n"));
+                        return;
+                    }
+                    else {
+                        PrintError(TEXT("Error saving window width key.\n"));
+                        return;
+                    }
+
+                }
+
+                if ((lResult = RegSetValueEx(key, L"heigth", 0, REG_DWORD, (const BYTE*)&heigth, (DWORD)sizeof(heigth))) == ERROR_SUCCESS) {
+
+                }
+                else {
+                    if (lResult == ERROR_FILE_NOT_FOUND) {
+                        PrintError(TEXT("Window heigth Key not found - save failed.\n"));
+                        return;
+                    }
+                    else {
+                        PrintError(TEXT("Error saving window heigth key.\n"));
+                        return;
+                    }
+                }
+                WinSizeIsSaved = FALSE;
+            }
+
+            if (WinLocIsSaved) {
+                if ((lResult = RegSetValueEx(key, L"left", 0, REG_DWORD, (const BYTE*)&(WinLocSave.left), (DWORD)sizeof(WinLocSave.left))) == ERROR_SUCCESS) {
+
+                }
+                else {
+                    if (lResult == ERROR_FILE_NOT_FOUND) {
+                        PrintError(TEXT("Window left location Key not found - save failed.\n"));
+                        return;
+                    }
+                    else {
+                        PrintError(TEXT("Error saving window left location key.\n"));
+                        return;
+                    }
+
+                }
+
+                if ((lResult = RegSetValueEx(key, L"top", 0, REG_DWORD, (const BYTE*)&(WinLocSave.top), (DWORD)sizeof(WinLocSave.top))) == ERROR_SUCCESS) {
+
+                }
+                else {
+                    if (lResult == ERROR_FILE_NOT_FOUND) {
+                        PrintError(TEXT("Window top location Key Key not found - save failed.\n"));
+                        return;
+                    }
+                    else {
+                        PrintError(TEXT("Error saving window top location Key key.\n"));
+                        return;
+                    }
+
+                }
+
+                if ((lResult = RegSetValueEx(key, L"right", 0, REG_DWORD, (const BYTE*)&(WinLocSave.right), (DWORD)sizeof(WinLocSave.right))) == ERROR_SUCCESS) {
+
+                }
+                else {
+                    if (lResult == ERROR_FILE_NOT_FOUND) {
+                        PrintError(TEXT("Window right location Key Key not found - save failed.\n"));
+                        return;
+                    }
+                    else {
+                        PrintError(TEXT("Error saving window right location Key key.\n"));
+                        return;
+                    }
+
+                }
+
+                if ((lResult = RegSetValueEx(key, L"bottom", 0, REG_DWORD, (const BYTE*)&(WinLocSave.bottom), (DWORD)sizeof(WinLocSave.bottom))) == ERROR_SUCCESS) {
+
+                }
+                else {
+                    if (lResult == ERROR_FILE_NOT_FOUND) {
+                        PrintError(TEXT("Window bottom location Key Key not found - save failed.\n"));
+                        return;
+                    }
+                    else {
+                        PrintError(TEXT("Error saving window bottom location Key key.\n"));
+                        return;
+                    }
+
+                }
+                WinLocIsSaved = FALSE;
+            }
+            //Finished with size and location keys
+            RegCloseKey(key);
         } else {
-            PrintError(TEXT("Error creating user key.\n"));
-            return;
+            if (lResult == ERROR_FILE_NOT_FOUND) {
+                PrintError(TEXT("User Key not found - creation failed.\n"));
+                return;
+            }
+            else {
+                PrintError(TEXT("Error creating user key.\n"));
+                return;
+            }
+        }
+
+        if (FontChanged) {
+            // save font data
+            if ((lResult = RegCreateKeyEx(HKEY_CURRENT_USER,
+                L"Software\\Island Christian Academy\\PlayMe\\font", //lpctstr
+                0,                      //reserved
+                (LPWSTR)L"",                     //ptr to null-term string specifying the object type of this key
+                REG_OPTION_NON_VOLATILE,
+                KEY_WRITE,
+                NULL,
+                &key,
+                &lpdw)) == ERROR_SUCCESS) {
+                /*
+                typedef struct tagLOGFONTW
+                {
+                    LONG      lfHeight;
+                    LONG      lfWidth;
+                    LONG      lfEscapement;
+                    LONG      lfOrientation;
+                    LONG      lfWeight;
+                    BYTE      lfItalic;
+                    BYTE      lfUnderline;
+                    BYTE      lfStrikeOut;
+                    BYTE      lfCharSet;
+                    BYTE      lfOutPrecision;
+                    BYTE      lfClipPrecision;
+                    BYTE      lfQuality;
+                    BYTE      lfPitchAndFamily;
+                    WCHAR     lfFaceName[LF_FACESIZE];
+                } LOGFONTW
+                */
+                // fetch lfFaceName
+                if ((lResult = RegSetValueEx(key, L"lfFaceName", 0, REG_SZ, (const BYTE*)&lfold.lfFaceName, (DWORD)sizeof(lfold.lfFaceName))) == ERROR_SUCCESS) {
+#ifdef DEBUG
+                    PrintError(TEXT("lfFaceName value saved.\n"));
+#endif
+                    // fetch lfHeight
+                    if ((lResult = RegSetValueEx(key, L"lfHeight", 0, REG_DWORD, (const BYTE*)&lfold.lfHeight, (DWORD)sizeof(lfold.lfHeight))) == ERROR_SUCCESS) {
+#ifdef DEBUG
+                        PrintError(TEXT("lfHeight value saved.\n"));
+#endif
+                    }
+                    else {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("lfHeight Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving lfHeight key.\n"));
+                            return;
+                        }
+                    }
+                    // fetch lfWidth
+                    if ((lResult = RegSetValueEx(key, L"lfWidth", 0, REG_DWORD, (const BYTE*)&lfold.lfWidth, (DWORD)sizeof(lfold.lfWidth))) != ERROR_SUCCESS) {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("lfWidth Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving lfWidth key.\n"));
+                            return;
+                        }
+                    }
+                    // fetch lfEscapement
+                    if ((lResult = RegSetValueEx(key, L"lfEscapement", 0, REG_DWORD, (const BYTE*)&lfold.lfEscapement, (DWORD)sizeof(lfold.lfEscapement))) != ERROR_SUCCESS) {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("lfEscapement Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving lfEscapement key.\n"));
+                            return;
+                        }
+                    }
+                    // fetch lfOrientation
+                    if ((lResult = RegSetValueEx(key, L"lfOrientation", 0, REG_DWORD, (const BYTE*)&lfold.lfOrientation, (DWORD)sizeof(lfold.lfOrientation))) != ERROR_SUCCESS) {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("lfOrientation Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving lfOrientation key.\n"));
+                            return;
+                        }
+                    }
+                    // fetch lfWeight
+                    if ((lResult = RegSetValueEx(key, L"lfWeight", 0, REG_DWORD, (const BYTE*)&lfold.lfWeight, (DWORD)sizeof(lfold.lfWeight))) != ERROR_SUCCESS) {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("lfWeight Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving lfWeight key.\n"));
+                            return;
+                        }
+                    }
+                    // fetch lfItalic
+                    tempdword = (DWORD)lfold.lfItalic;
+                    if ((lResult = RegSetValueEx(key, L"lfItalic", 0, REG_DWORD, (const BYTE*)&tempdword, (DWORD)sizeof(tempdword))) != ERROR_SUCCESS) {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("lfItalic Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving lfItalic key.\n"));
+                            return;
+                        }
+                    }
+                    // fetch lfUnderline
+                    tempdword = (DWORD)lfold.lfUnderline;
+                    if ((lResult = RegSetValueEx(key, L"lfUnderline", 0, REG_DWORD, (const BYTE*)&tempdword, (DWORD)sizeof(tempdword))) != ERROR_SUCCESS) {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("lfUnderline Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving lfUnderline key.\n"));
+                            return;
+                        }
+                    }
+                    // fetch lfStrikeOut
+                    tempdword = (DWORD)lfold.lfStrikeOut;
+                    if ((lResult = RegSetValueEx(key, L"lfStrikeOut", 0, REG_DWORD, (const BYTE*)&tempdword, (DWORD)sizeof(tempdword))) != ERROR_SUCCESS) {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("lfStrikeOut Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving lfStrikeOut key.\n"));
+                            return;
+                        }
+                    }
+                    // fetch lfCharSet
+                    tempdword = (DWORD)lfold.lfCharSet;
+                    if ((lResult = RegSetValueEx(key, L"lfCharSet", 0, REG_DWORD, (const BYTE*)&tempdword, (DWORD)sizeof(tempdword))) != ERROR_SUCCESS) {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("lfCharSet Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving lfCharSet key.\n"));
+                            return;
+                        }
+                    }
+                    // fetch lfOutPrecision
+                    tempdword = (DWORD)lfold.lfOutPrecision;
+                    if ((lResult = RegSetValueEx(key, L"lfOutPrecision", 0, REG_DWORD, (const BYTE*)&tempdword, (DWORD)sizeof(tempdword))) != ERROR_SUCCESS) {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("lfOutPrecision Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving lfOutPrecision key.\n"));
+                            return;
+                        }
+                    }
+                    // fetch lfClipPrecision
+                    tempdword = (DWORD)lfold.lfClipPrecision;
+                    if ((lResult = RegSetValueEx(key, L"lfClipPrecision", 0, REG_DWORD, (const BYTE*)&tempdword, (DWORD)sizeof(tempdword))) != ERROR_SUCCESS) {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("lfClipPrecision Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving lfClipPrecision key.\n"));
+                            return;
+                        }
+                    }
+                    // fetch lfQuality
+                    tempdword = (DWORD)lfold.lfQuality;
+                    if ((lResult = RegSetValueEx(key, L"lfQuality", 0, REG_DWORD, (const BYTE*)&tempdword, (DWORD)sizeof(tempdword))) != ERROR_SUCCESS) {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("lfQuality Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving lfQuality key.\n"));
+                            return;
+                        }
+                    }
+                    // fetch lfPitchAndFamily
+                    tempdword = (DWORD)lfold.lfPitchAndFamily;
+                    if ((lResult = RegSetValueEx(key, L"lfPitchAndFamily", 0, REG_DWORD, (const BYTE*)&tempdword, (DWORD)sizeof(tempdword))) != ERROR_SUCCESS) {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("lfPitchAndFamily Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving lfPitchAndFamily key.\n"));
+                            return;
+                        }
+                    }
+                }
+                else {
+                    if (lResult == ERROR_FILE_NOT_FOUND) {
+                        PrintError(TEXT("lfFaceName Key not found - save failed.\n"));
+                        return;
+                    }
+                    else {
+                        PrintError(TEXT("Error saving lfFaceName value.\n"));
+                        return;
+                    }
+
+                }
+                //Finished with keys
+                RegCloseKey(key);
+            }
+            else {
+                if (lResult == ERROR_FILE_NOT_FOUND) {
+                    PrintError(TEXT("font Key not found - creation failed.\n"));
+                    return;
+                }
+                else {
+                    PrintError(TEXT("Error creating font key.\n"));
+                    return;
+                }
+            }
+            FontChanged = FALSE;
         }
     }
 }
@@ -632,7 +1186,7 @@ bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
                     PrintError(TEXT("parse of directory name failed"));
                     return(false);
                 }
-                if (AudioFiles) {
+                if (AudioFiles == AUDIOFILES) {
                     if (*(Booknames + booknumber) != NULL) {
                         PrintError(TEXT("duplicate book name found in audio directory"));
                         return(false);
@@ -649,7 +1203,8 @@ bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
                     strcpy(tempAF->BookDirectoryPath, scratchstring);
                     tempAF->FirstChapterDataPointer = NULL;
                 } else {
-                    if (*(Booknames + booknumber) != NULL) {
+                    if (*(Booknames + booknumber) == NULL) {
+                        if (booknumber == 38) continue;
                         PrintError(TEXT("empty book name found while processing text directory"));
                         return(false);
                     }
@@ -671,20 +1226,11 @@ bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
             else {
                 // sould be no files in this folder - skip it
                 continue;
-                /*               filecount++;
-                               if (filecount == jackiesfile) {
-                                   breaknow = 1;
-                                   wcscpy(foundPath, sPath);
-                                   //                    FindClose(hFind); //Always, Always, clean things up!
-                                   //                    return false;
-                                   break;
-                               } */
             }
-            //           if (breaknow)break;
+
         }
     } while (FindNextFile(hFind, &fdFile)); //Find the next file.
 
-//    if (!breaknow)FindClose(hFind); //Always, Always, clean things up!
     FindClose(hFind); //Always, Always, clean things up!
 
     return true;
@@ -722,16 +1268,7 @@ bool LoadSubDirectoryContents(const wchar_t* sDir, int* chapterindex, int booknu
     {
         return false;
     }
-/*
-    if (AudioFiles) {
-        Booknames = (char**)calloc(67, sizeof(char*));
-        ChapterData = (ChapterListStructure**)calloc(3000, sizeof(ChapterListStructure*));
-        AudioFolderData = (AudioFoldersStructure**)calloc(67, sizeof(AudioFoldersStructure*));
-    }
-    else {
-        TextFolderData = (TextFoldersStructure**)calloc(67, sizeof(TextFoldersStructure*));
-    }
-*/
+
     do
     {
         //Find first file will always return "."
@@ -777,33 +1314,26 @@ bool LoadSubDirectoryContents(const wchar_t* sDir, int* chapterindex, int booknu
             else {
                 // sould be no directories in this folder - skip it
                 continue;
-                /*               filecount++;
-                               if (filecount == jackiesfile) {
-                                   breaknow = 1;
-                                   wcscpy(foundPath, sPath);
-                                   //                    FindClose(hFind); //Always, Always, clean things up!
-                                   //                    return false;
-                                   break;
-                               } */
             }
-            //           if (breaknow)break;
         }
     } while (FindNextFile(hFind, &fdFile)); //Find the next file.
 
-//    if (!breaknow)FindClose(hFind); //Always, Always, clean things up!
     FindClose(hFind); //Always, Always, clean things up!
 
     return true;
 }
 
 bool FindDirectoryContents() {
+    // find audio path
     ChapterListStructure* tempCS;
     tempCS = *(ChapterData + jackiesfile - 1);
     int num_chars = MultiByteToWideChar(CP_UTF8, 0, tempCS->AudioFilePath, strlen(tempCS->AudioFilePath), NULL, 0);
     MultiByteToWideChar(CP_UTF8, 0, tempCS->AudioFilePath, strlen(tempCS->AudioFilePath), foundPath, num_chars);
     foundPath[num_chars] = L'\0';
 
-    //    wcscpy(foundPath, sPath);
+    // find text path
+    foundTextPath = tempCS->TextFilePath;
+
     return(true);
 }
 

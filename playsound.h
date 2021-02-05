@@ -32,9 +32,10 @@
 
 
 #define AUDIOFILES  1
-#define TEXTFILE    0
+#define TEXTFILES    0
 #define TOTNUMCHAPS	1175
 #define TOTNUMCHAPSP1	TOTNUMCHAPS+1
+#define ID_EDITCHILD 1001
 
 typedef struct ChapterList
 {
@@ -70,3 +71,14 @@ EXTERN AudioFoldersStructure** AudioFolderData;
 EXTERN TextFoldersStructure** TextFolderData;
 EXTERN ChapterListStructure** ChapterData;
 EXTERN char** Booknames;
+EXTERN HWND hTextWnd INITNULL;
+EXTERN HWND hwndEdit INITNULL;
+EXTERN RECT WinLocSave;
+EXTERN BOOL WinLocIsSaved INITBOOLFALSE;
+EXTERN DWORD width;
+EXTERN DWORD heigth;
+EXTERN BOOL WinSizeIsSaved INITBOOLFALSE;
+EXTERN LOGFONT lfold;
+EXTERN int lfset INITIZERO;
+EXTERN BOOL FontChanged INITBOOLFALSE;
+
