@@ -610,7 +610,11 @@ int GetConfig(int typeGet)
             dsize = sizeof(WinLocSave.bottom);
             StatusReturn = StatusReturn | RegQueryValueEx(key, L"bottom", NULL, &dwtype, (BYTE*)&(WinLocSave.bottom), &dsize);
             if (!StatusReturn) WinLocIsSaved = TRUE;
-
+            // get the WinSizeLoc struct
+            dsize = sizeof(WINDOWPLACEMENT);
+            StatusReturn = RegQueryValueEx(key, L"WinSizeLoc", NULL, &dwtype, (BYTE*)&(WinSizeLoc), &dsize);
+            if ( !StatusReturn && ( WinSizeLoc.length == sizeof(WINDOWPLACEMENT) ) ) ValidWinSizeLoc = TRUE;
+            
             //Finished with key
             RegCloseKey(key);
         }
@@ -907,6 +911,26 @@ void WriteConfig(int chapter)
                 }
                 WinLocIsSaved = FALSE;
             }
+
+            if (ValidWinSizeLoc) {
+                if ((WinSizeLoc.showCmd != SW_SHOWMINIMIZED) && (WinSizeLoc.showCmd != SW_SHOWMINNOACTIVE)) {
+                    if ((lResult = RegSetValueEx(key, L"WinSizeLoc", 0, REG_BINARY, (const BYTE*)&(WinSizeLoc), (DWORD)sizeof(WINDOWPLACEMENT))) == ERROR_SUCCESS) {
+
+                    }
+                    else {
+                        if (lResult == ERROR_FILE_NOT_FOUND) {
+                            PrintError(TEXT("Window WinSizeLoc Key not found - save failed.\n"));
+                            return;
+                        }
+                        else {
+                            PrintError(TEXT("Error saving WinSizeLoc key.\n"));
+                            return;
+                        }
+
+                    }
+                }
+            }
+
             //Finished with size and location keys
             RegCloseKey(key);
         } else {

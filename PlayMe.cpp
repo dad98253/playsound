@@ -71,6 +71,7 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE h0, LPTSTR lpCmdLine, int nC
     fdb = fopen("debug.log", "w");
 #endif
     hInst = hInstance;
+    WinSizeLoc.length = sizeof(WINDOWPLACEMENT);
     globalnCmdShow = nCmdShow;
     SetThreadName(-1, (char*)"PlayMe");
     int iret;
@@ -210,6 +211,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     static HANDLE hFont;
     static bool move = false;
     static bool resize = false;
+    static BOOL ismoving = false;
+    static BOOL firstPosCall = true;
+    WINDOWPOS *winPos;
 
     static TCHAR lpszLatin[] = L"Lorem ipsum dolor sit amet, consectetur "
         L"adipisicing elit, sed do eiusmod tempor "
@@ -229,6 +233,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_CREATE:
     {
         lpsztext = lpszLatin;
+        if (ValidWinSizeLoc) {
+            if (!SetWindowPlacement(hWnd, &WinSizeLoc)) {
+                PrintError(TEXT("SetWindowPlacement failed.\n"));
+            }
+        }
         if (foundTextPath != NULL) {
             pFile = fopen(foundTextPath, "r");
             if (pFile != NULL)
@@ -372,7 +381,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         RECT* r = (LPRECT)lParam;
         WinLocSave = *r;
         WinLocIsSaved = TRUE;
-        return 0;
+        return DefWindowProc(hWnd, message, wParam, lParam);
     }
     break;
 
@@ -381,12 +390,43 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
         if (move || resize)
         {
+//          fill the WinSizeLoc structure
+            if( GetWindowPlacement(hWnd, &WinSizeLoc) ) ValidWinSizeLoc = TRUE;
 //          save new location in registry
             WriteConfig(-1);
             move = false;
             resize = false;
+            ismoving = FALSE;
         }
-        return 0;
+        return DefWindowProc(hWnd, message, wParam, lParam);
+    }
+    break;
+
+    case WM_WINDOWPOSCHANGED:
+    {
+        winPos = (WINDOWPOS*)lParam;
+        if (!(winPos->flags & SWP_NOSIZE) && !ismoving) {
+            if (!firstPosCall) {
+                if (GetWindowPlacement(hWnd, &WinSizeLoc)) ValidWinSizeLoc = TRUE;
+                WriteConfig(-1);
+#ifdef DEBUG
+                wchar_t sTemp[2048];
+                wsprintf(sTemp, L"SWP_NOSIZE event: current showCmd value = 0x%x", WinSizeLoc.showCmd);
+                PrintError(sTemp);
+#endif
+            }
+            else {
+                firstPosCall = FALSE;
+            }
+        }
+        return DefWindowProc(hWnd, message, wParam, lParam);
+    }
+    break;
+
+    case WM_ENTERSIZEMOVE:
+    {
+        ismoving = TRUE;
+        return DefWindowProc(hWnd, message, wParam, lParam);
     }
     break;
 
