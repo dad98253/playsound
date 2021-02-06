@@ -16,6 +16,12 @@
 #define IDI_ICON1                       131
 #define IDI_ICON2                       132
 #define MAINICON                        132
+#define IDC_STATIC3                     1003
+#define IDC_STATIC2                     1004
+#define IDC_STATIC4                     1005
+#define IDC_STATIC5                     1006
+#define IDC_STATIC6                     1007
+#define IDC_STATIC7                     1008
 #define ID_FILE_PLAY                    32771
 #define ID_FILE_PAUSE                   32772
 #define ID_FILE_CONTINUE                32773
@@ -28,7 +34,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        134
 #define _APS_NEXT_COMMAND_VALUE         32774
-#define _APS_NEXT_CONTROL_VALUE         1003
+#define _APS_NEXT_CONTROL_VALUE         1009
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

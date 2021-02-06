@@ -1,6 +1,6 @@
 #pragma once
 
-#include "resource.h"
+#include "Resource.h"
 
 
 
@@ -67,12 +67,20 @@ typedef struct TextFolders
 	ChapterListStructure*		FirstChapterDataPointer;
 } TextFoldersStructure;
 
+#define VERNAMELEN 250
+EXTERN	int iProductNameLenIn INITVERNAMELEN;
+EXTERN	int iProductVersionLenIn INITVERNAMELEN;
+EXTERN	int iProductCopyrightnLenIn INITVERNAMELEN;
+EXTERN char strProductName[VERNAMELEN];
+EXTERN char strProductVersion[VERNAMELEN];
+EXTERN char strProductCopyright[VERNAMELEN];
 EXTERN AudioFoldersStructure** AudioFolderData;
 EXTERN TextFoldersStructure** TextFolderData;
 EXTERN ChapterListStructure** ChapterData;
 EXTERN char** Booknames;
 EXTERN HWND hTextWnd INITNULL;
 EXTERN HWND hwndEdit INITNULL;
+EXTERN HWND hwndEditSubClass INITNULL;
 EXTERN RECT WinLocSave;
 EXTERN BOOL WinLocIsSaved INITBOOLFALSE;
 EXTERN DWORD width;

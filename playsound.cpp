@@ -10,11 +10,12 @@
 #pragma comment(lib, "Winmm.lib")
 #include <CommCtrl.h>
 #include <tchar.h>
+#include <time.h> 
 
 #include "framework.h"
 #define MAINDEFS
 #include "playsound.h"
-#include "resource.h"
+#include "Resource.h"
 
 #define MAX_LOADSTRING 100
 
@@ -39,6 +40,7 @@ bool FindDirectoryContents();
 void cleanupheap();
 extern BOOL InitInstance(HINSTANCE, int);
 extern ATOM MyRegisterClass(HINSTANCE hInstance);
+extern bool GetProductAndVersion(char* strProductName, int iProductNameLenIn, char* strProductVersion, int iProductVersionLenIn, char* strProductCopyright, int iProductCopyrightnLenIn);
 extern TCHAR sztext[100000];
 extern TCHAR* lpsztext;
 extern char text[100000];
@@ -218,6 +220,15 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
 // Message handler for about box.
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
+//    time_t t = time(0);
+    HWND hWndStaticCompileDate;
+    HWND hWndStaticSavedDate;
+    HWND hWndStaticAudioFolderLocation;
+    HWND hWndStaticTextFolderLocation;
+    HWND hWndStaticVersion;
+    HWND hWndStaticCopyRight;
+    WCHAR szTemp[2048];                 
+
     switch (message)
     {
 
@@ -241,6 +252,38 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_INITDIALOG:
     {
         HICON hIcon;
+
+        GetProductAndVersion(strProductName, iProductNameLenIn, strProductVersion, iProductVersionLenIn, strProductCopyright, iProductCopyrightnLenIn);
+        // IDC_STATIC2                 
+        char templine[300];
+        strcpy(templine, strProductName);
+        strcat(templine, " Version ");
+        strcat(templine, strProductVersion);
+        hWndStaticVersion = GetDlgItem(hDlg, IDC_STATIC2);
+        //wcstombs(scratchstring, sPath, wcslen(sPath) + 1);
+        //size_t mbstowcs(wchar_t* dest, const char* src, size_t n);
+        mbstowcs(szTemp, templine, sizeof(szTemp));
+        SetWindowText(hWndStaticVersion, (LPWSTR)szTemp);
+
+        // IDC_STATIC3
+        hWndStaticCopyRight = GetDlgItem(hDlg, IDC_STATIC3);
+        mbstowcs(szTemp, strProductCopyright, sizeof(szTemp));
+        SetWindowText(hWndStaticCopyRight, (LPWSTR)szTemp);
+
+        // IDC_STATIC7                 
+        hWndStaticCompileDate = GetDlgItem(hDlg, IDC_STATIC7);
+        wsprintf(szTemp, L"Compiled on " __DATE__ " at " __TIME__);
+        SetWindowText(hWndStaticCompileDate, (LPWSTR)szTemp);
+
+        // IDC_STATIC4  
+        hWndStaticAudioFolderLocation = GetDlgItem(hDlg, IDC_STATIC4);
+        wcscpy(szTemp, dbloc);
+        SetWindowText(hWndStaticAudioFolderLocation, (LPWSTR)szTemp);
+
+        // IDC_STATIC5  
+        hWndStaticTextFolderLocation = GetDlgItem(hDlg, IDC_STATIC5);
+        wcscpy(szTemp, textdbloc);
+        SetWindowText(hWndStaticTextFolderLocation, (LPWSTR)szTemp);
 
         hIcon = (HICON)LoadImage(hInst,
             MAKEINTRESOURCE(IDI_ICON1),

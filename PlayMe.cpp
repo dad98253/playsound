@@ -37,6 +37,8 @@ ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+LRESULT CALLBACK EditProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+WNDPROC DefEditProc;
 
 extern wchar_t dbloc[2048];
 extern wchar_t textdbloc[2048];
@@ -232,6 +234,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
     case WM_CREATE:
     {
+        
         lpsztext = lpszLatin;
         if (ValidWinSizeLoc) {
             if (!SetWindowPlacement(hWnd, &WinSizeLoc)) {
@@ -292,11 +295,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
             ReleaseDC(NULL, hDC);
         }
-
-
-
         // Add text to the window. 
         SendMessage(hwndEdit, WM_SETTEXT, 0, (LPARAM)lpsztext);
+// subclass the edit window
+        DefEditProc = (WNDPROC)SetWindowLongPtr(hwndEdit, GWLP_WNDPROC, (long)EditProc);
+
         break;
     }
 
@@ -430,9 +433,45 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     }
     break;
 
+    case WM_KEYDOWN:
+    {
+        WORD wScrollNotify = 0xFFFF;
 
+        switch (wParam)
+        {
+        case VK_UP:
+            wScrollNotify = SB_LINEUP;
+            break;
+
+        case VK_PRIOR:
+            wScrollNotify = SB_PAGEUP;
+            break;
+
+        case VK_NEXT:
+            wScrollNotify = SB_PAGEDOWN;
+            break;
+
+        case VK_DOWN:
+            wScrollNotify = SB_LINEDOWN;
+            break;
+
+        case VK_HOME:
+            wScrollNotify = SB_TOP;
+            break;
+
+        case VK_END:
+            wScrollNotify = SB_BOTTOM;
+            break;
+        }
+
+        if (wScrollNotify != -1)
+            SendMessage(hWnd, WM_VSCROLL, MAKELONG(wScrollNotify, 0), 0L);
+
+        break;
+    }
 
     case WM_DESTROY:
+        SetWindowLongPtr(hwndEdit, GWLP_WNDPROC, (long)DefEditProc);
         PostQuitMessage(0);
         break;
 
@@ -440,4 +479,58 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
     return 0;
+}
+
+
+
+
+//Then add this template
+LRESULT CALLBACK EditProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    hwndEditSubClass = hwnd;
+
+    switch (uMsg)
+    {
+    case WM_KEYDOWN:
+    {
+        WORD wScrollNotify = 0xFFFF;
+
+        switch (wParam)
+        {
+        case VK_UP:
+            wScrollNotify = SB_LINEUP;
+            break;
+
+        case VK_PRIOR:
+            wScrollNotify = SB_PAGEUP;
+            break;
+
+        case VK_NEXT:
+            wScrollNotify = SB_PAGEDOWN;
+            break;
+
+        case VK_DOWN:
+            wScrollNotify = SB_LINEDOWN;
+            break;
+
+        case VK_HOME:
+            wScrollNotify = SB_TOP;
+            break;
+
+        case VK_END:
+            wScrollNotify = SB_BOTTOM;
+            break;
+        }
+
+        if (wScrollNotify != -1)
+            SendMessage(hwnd, WM_VSCROLL, MAKELONG(wScrollNotify, 0), 0L);
+
+        break;
+    }
+    default:
+        return CallWindowProc(DefEditProc, hwnd, uMsg, wParam, lParam);
+
+    }
+
+    return FALSE;
 }
