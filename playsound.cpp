@@ -486,6 +486,46 @@ int playme()
                 ptext = ptext + lxx;
             }
             fclose(pFile);
+            if (!IncludeFootnotes) {
+                ptext = text;
+                char* left;
+                char* right;
+                char* crlf;
+                while (ptext) {
+                    // check for a '{', if none, we are done
+                    if ( !(left = strchr(ptext, '{')) ) break;
+                    // '{' found, find the matching '}', if none, continue
+                    if ( !(right = strchr(left, '}')) ) {
+                        ptext = left + 1;
+                        continue;
+                    }
+                    // found matchinf '}', now check for a '\r' between them
+                    if ( (crlf = strchr(left, '\r')) ) {
+                        if (crlf < right) {
+                            // '\r' found, replace left with a new '\r\n' (unless right+1 = '\r') & increment left past them
+                            if (*(right + 1) != '\r') {
+                                *left = '\r';
+                                left++;
+                                *left = '\n';
+                                left++;
+                                if (*(right + 1) != '[') {
+                                    *left = '\t';
+                                    left++;
+                                }
+                            }
+                        }
+                    }
+                    // delete everything from left to the '}' and continue
+                    right++;
+                    ptext = left;
+                    while (*right) {
+                        *left = *right;
+                        left++;
+                        right++;
+                    }
+                    *left = '\000';
+                }
+            }
             ptext = text;
             int num_chars = MultiByteToWideChar(CP_UTF8, 0, ptext, strlen(ptext), NULL, 0);
             MultiByteToWideChar(CP_UTF8, 0, ptext, strlen(ptext), lpsztext, num_chars);
