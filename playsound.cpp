@@ -3,6 +3,7 @@
 
 
 #include <windows.h>
+#include <windowsx.h>
 #include <Mmsystem.h>
 #include <mciapi.h>
 #include<iostream>
@@ -26,6 +27,7 @@ HINSTANCE hInst;                                // current instance
 int playme();
 
 BOOL  CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+INT_PTR CALLBACK SettingsFM(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 DWORD MCIClose(MCIDEVICEID wDeviceID);
 void PrintError(LPCTSTR errDesc);
 void showError(DWORD dwError);
@@ -84,11 +86,13 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
                         MCIPause(wDeviceID);
                         paused = 1;
                     } else {
-                        TimmerID = SetTimer(hDlg, nID120SecondEvent, 1200 * 1000, NULL);
+                        if (TimeoutSetting) TimmerID = SetTimer(hDlg, nID120SecondEvent, TimeoutSetting * 60000, NULL);
                         keepPlaying = 1;
                         // Perform text window initialization:
-                        if (!InitInstance(hInst, globalnCmdShow)) {
-                            PrintError(TEXT("InitInstance failed."));
+                        if (!hTextWnd) {
+                            if (!InitInstance(hInst, globalnCmdShow)) {
+                                PrintError(TEXT("InitInstance failed."));
+                            }
                         }
                         playme();
                     }
@@ -114,6 +118,10 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
             case   ID_FILE_CONTINUE:
                 MCIResume(wDeviceID);
                 paused = 0;
+                break;
+
+            case IDC_SETTINGS:
+                DialogBox(hInst, MAKEINTRESOURCE(IDD_SETTINGS), hDlg, SettingsFM);
                 break;
               
             case IDM_EXIT:
@@ -160,6 +168,7 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
                     playme();
                 } else {
                     SendMessage(GetDlgItem(hDlg, ID_FILE_PLAY), WM_SETTEXT, 0, (LPARAM)_T("Play"));
+ //                   CloseWindow(hTextWnd);
                 }
             }
             return TRUE;
@@ -404,59 +413,6 @@ DWORD MCIPlayFrom(MCIDEVICEID wDeviceID, int sec)
     return mciSendCommand(wDeviceID, MCI_PLAY, MCI_NOTIFY | MCI_FROM | MCI_WAIT, (DWORD)&play);
 }
 
-bool ListDirectoryContents(const wchar_t* sDir)
-{
-    WIN32_FIND_DATA fdFile;
-    HANDLE hFind = NULL;
-
-    wchar_t sPath[2048];
-
-    if (breaknow) return false;
-    //Specify a file mask. *.* = We want everything!
-    wsprintf(sPath, L"%s\\*.*", sDir);
-
-    if ((hFind = FindFirstFile(sPath, &fdFile)) == INVALID_HANDLE_VALUE)
-    {
-        return false;
-    }
-
-    do
-    {
-        //Find first file will always return "."
-        //    and ".." as the first two directories.
-        if (wcscmp(fdFile.cFileName, L".") != 0
-            && wcscmp(fdFile.cFileName, L"..") != 0)
-        {
-            //Build up our file path using the passed in
-            //  [sDir] and the file/foldername we just found:
-            wsprintf(sPath, L"%s\\%s", sDir, fdFile.cFileName);
-
-            //Is the entity a File or Folder?
-            if (fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-            {
-                ListDirectoryContents(sPath); //Recursion, I love it!
-            }
-            else {
-                filecount++;
-                if (filecount == jackiesfile) {
-                        breaknow = 1;
-                    wcscpy(foundPath, sPath);
-//                    FindClose(hFind); //Always, Always, clean things up!
-//                    return false;
-                    break;
-                }
-            }
-            if (breaknow)break;
-        }
-    } while (FindNextFile(hFind, &fdFile)); //Find the next file.
-
-//    if (!breaknow)FindClose(hFind); //Always, Always, clean things up!
-    FindClose(hFind); //Always, Always, clean things up!
-
-    return true;
-}
-
-
 LPCTSTR ErrorMessage(DWORD error)
 {
     LPVOID lpMsgBuf;
@@ -595,18 +551,28 @@ int GetConfig(int typeGet)
     int iret = 0;
 
     if (getChapt) {
-        // get the current chapter number
+        // get the current chapter number, footnote setting, and timeout value
         if ((lResult = RegOpenKeyEx(HKEY_CURRENT_USER,
             L"Software\\Island Christian Academy\\PlayMe", //lpctstr
             0,                      //reserved
             KEY_QUERY_VALUE,
-            &key)) == ERROR_SUCCESS) {
-            dsize = sizeof(jackiesfile);
-
+            &key)) == ERROR_SUCCESS) {         
             // get chapter
+            dsize = sizeof(jackiesfile);
             StatusReturn = RegQueryValueEx(key, L"Chapter", NULL, &dwtype,
                 (BYTE*)&jackiesfile, &dsize);
             if (StatusReturn) jackiesfile = 915;
+            // get footnote setting
+            dsize = sizeof(IncludeFootnotes);
+            StatusReturn = RegQueryValueEx(key, L"IncludeFootnotes", NULL, &dwtype,
+                (BYTE*)&IncludeFootnotes, &dsize);
+            if (StatusReturn) IncludeFootnotes = TRUE;
+            // get timeout value
+            dsize = sizeof(TimeoutSetting);
+            StatusReturn = RegQueryValueEx(key, L"TimeoutSetting", NULL, &dwtype,
+                (BYTE*)&TimeoutSetting, &dsize);
+            if (StatusReturn) TimeoutSetting = 20;
+
             //Finished with key
             RegCloseKey(key);
         }
@@ -812,7 +778,7 @@ void WriteConfig(int chapter)
     DWORD tempdword;
 
     if (chapter > -1) {
-        // set chapter
+        // set chapter, footnote, and timeout
         if ((lResult = RegCreateKeyEx(HKEY_CURRENT_USER,
             L"Software\\Island Christian Academy\\PlayMe", //lpctstr
             0,                      //reserved
@@ -822,6 +788,7 @@ void WriteConfig(int chapter)
             NULL,
             &key,
             &lpdw)) == ERROR_SUCCESS) {
+            // save chapter
             if ((lResult = RegSetValueEx(key, L"chapter", 0, REG_DWORD, (const BYTE*)&chapter, (DWORD)sizeof(chapter))) == ERROR_SUCCESS) {
 
             } else {
@@ -833,7 +800,34 @@ void WriteConfig(int chapter)
                     PrintError(TEXT("Error saving chapter key.\n"));
                     return;
                 }
+            }
+            // save footnote
+            if ((lResult = RegSetValueEx(key, L"IncludeFootnotes", 0, REG_DWORD, (const BYTE*)&IncludeFootnotes, (DWORD)sizeof(IncludeFootnotes))) == ERROR_SUCCESS) {
 
+            }
+            else {
+                if (lResult == ERROR_FILE_NOT_FOUND) {
+                    PrintError(TEXT("IncludeFootnotes Key not found - save failed.\n"));
+                    return;
+                }
+                else {
+                    PrintError(TEXT("Error saving IncludeFootnotes key.\n"));
+                    return;
+                }
+            }
+            // save timeout
+            if ((lResult = RegSetValueEx(key, L"TimeoutSetting", 0, REG_DWORD, (const BYTE*)&TimeoutSetting, (DWORD)sizeof(TimeoutSetting))) == ERROR_SUCCESS) {
+
+            }
+            else {
+                if (lResult == ERROR_FILE_NOT_FOUND) {
+                    PrintError(TEXT("TimeoutSetting Key not found - save failed.\n"));
+                    return;
+                }
+                else {
+                    PrintError(TEXT("Error saving TimeoutSetting key.\n"));
+                    return;
+                }
             }
             //Finished with keys
             RegCloseKey(key);
@@ -1233,6 +1227,7 @@ bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
         Booknames = (char**)calloc(67,sizeof(char*));
         ChapterData = (ChapterListStructure**)calloc(TOTNUMCHAPSP1,sizeof(ChapterListStructure*));
         AudioFolderData = (AudioFoldersStructure**)calloc(67,sizeof(AudioFoldersStructure*));
+        PreviousChapterPointer = NULL;
     }
     else {
         TextFolderData = (TextFoldersStructure**)calloc(67,sizeof(TextFoldersStructure*));
@@ -1269,6 +1264,8 @@ bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
 #endif
                     return(false);
                 }
+                AudioFoldersStructure* tempAF =NULL;
+                TextFoldersStructure* tempTF = NULL;
                 if (AudioFiles == AUDIOFILES) {
                     if (*(Booknames + booknumber) != NULL) {
                         PrintError(TEXT("duplicate book name found in audio directory"));
@@ -1277,7 +1274,6 @@ bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
                     *(Booknames + booknumber) = (char*)calloc(strlen(bookname)+1, sizeof(char *));
                     strcpy(*(Booknames + booknumber), bookname);
                     *(AudioFolderData + booknumber) = (AudioFoldersStructure*)calloc( 1, sizeof(AudioFoldersStructure));
-                    AudioFoldersStructure *tempAF;
                     tempAF = *(AudioFolderData + booknumber);
                     tempAF->BookNumber = booknumber;
                     tempAF->NumberOfChapters = -1;
@@ -1292,7 +1288,6 @@ bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
                         return(false);
                     }
                     *(TextFolderData + booknumber) = (TextFoldersStructure*)calloc(1, sizeof(TextFoldersStructure));
-                    TextFoldersStructure* tempTF;
                     tempTF = *(TextFolderData + booknumber);
                     tempTF->BookNumber = booknumber;
                     tempTF->NumberOfChapters = -1;
@@ -1304,7 +1299,16 @@ bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
                 }
 
                 free(scratchstring);
+                int startchapter = chapterIndex;
                 LoadSubDirectoryContents(sPath, &chapterIndex, booknumber, AudioFiles);
+                if (AudioFiles == AUDIOFILES) {
+                    tempAF->NumberOfChapters = chapterIndex - startchapter;
+                    tempAF->FirstChapterDataPointer = ChapterData[startchapter+1];
+                }
+                else {
+                    tempTF->NumberOfChapters = chapterIndex - startchapter;
+                    tempTF->FirstChapterDataPointer = ChapterData[startchapter + 1];
+                }
             }
             else {
                 // sould be no files in this folder - skip it
@@ -1315,6 +1319,17 @@ bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
     } while (FindNextFile(hFind, &fdFile)); //Find the next file.
 
     FindClose(hFind); //Always, Always, clean things up!
+
+    if (AudioFiles) {
+        ChapterListStructure* NextChapterPointer;
+        NextChapterPointer = PreviousChapterPointer;
+        PreviousChapterPointer = PreviousChapterPointer->PreviousChapter;
+        while (PreviousChapterPointer) {
+            PreviousChapterPointer->NextChapter = NextChapterPointer;
+            NextChapterPointer = PreviousChapterPointer;
+            PreviousChapterPointer = PreviousChapterPointer->PreviousChapter;
+        }
+    }
 
     return true;
 }
@@ -1385,12 +1400,14 @@ bool LoadSubDirectoryContents(const wchar_t* sDir, int* chapterindex, int booknu
                     tempCS = *(ChapterData + *chapterindex);
                     tempCS->GlobalChapterIndex = *chapterindex;
                     tempCS->ChapterNumber = numChaptersInBook;
+                    tempCS->BookNumber = booknumber;
                     tempCS->Bookname = bookname;
                     tempCS->AudioFilePath = (char*)malloc(strlen(scratchstring) + 1);
                     strcpy(tempCS->AudioFilePath, scratchstring);
                     tempCS->TextFilePath = NULL;
                     tempCS->NextChapter = NULL;
-                    tempCS->PreviousChapter = NULL;
+                    tempCS->PreviousChapter = PreviousChapterPointer;
+                    PreviousChapterPointer = tempCS;
                 }
                 else {
                     ChapterListStructure* tempCS;
@@ -1476,4 +1493,192 @@ void cleanupheap() {
     }
 
     return;
+}
+
+// Message handler for Settings Dialog box.
+INT_PTR CALLBACK SettingsFM(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    HICON hIcon;
+    HWND hWndComboBoook;
+    HWND hWndFootnoteRadio;
+    HWND hWndPlaytimeSpin;
+    int err;
+    wchar_t  A[256];
+    int  k;
+    AudioFoldersStructure* TempAudio;
+    ChapterListStructure* TempChap;
+    static int BookIndex;
+
+    switch (message)
+    {
+
+    case WM_COMMAND:
+    {
+        int wmId = LOWORD(wParam);
+        switch (wmId)
+        {
+        case IDOK:
+        {
+            int booknumber;
+            int StartChapter;
+            int chapterIndex;
+            // initialize the book combo
+            hWndComboBoook = GetDlgItem(hDlg, IDC_BOOK);
+            booknumber = SendMessage(hWndComboBoook, (UINT)CB_GETCURSEL, (WPARAM)0, (LPARAM)0) + 1;
+            TempAudio = *(AudioFolderData + booknumber);
+            TempChap = TempAudio->FirstChapterDataPointer;
+            StartChapter = TempChap->GlobalChapterIndex;
+            HWND hWndComboChapter = GetDlgItem(hDlg, IDC_CHAPTER);
+            chapterIndex = SendMessage(hWndComboChapter, (UINT)CB_GETCURSEL, (WPARAM)0, (LPARAM)0)+1 + StartChapter;
+            jackiesfile = chapterIndex;
+
+            // get the state of the footnote radio buttons
+            hWndFootnoteRadio = GetDlgItem(hDlg, IDC_FOOTNOTEYES);
+            if (Button_GetCheck(hWndFootnoteRadio) == BST_CHECKED) {
+                IncludeFootnotes = TRUE;
+            }
+            else {
+                IncludeFootnotes = FALSE;
+            }
+
+            // get the value of the playtime edit control
+            TimeoutSetting = (int)GetDlgItemInt(hDlg, IDC_PLAYTIME, NULL, FALSE);
+
+            // update what's saved in the registry
+            WriteConfig(jackiesfile);
+
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+            break;
+
+        case IDCANCEL:
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+            break;
+
+        case IDC_BOOK:
+            {
+                if (HIWORD(wParam) == CBN_SELCHANGE)
+                {
+                    BookIndex = SendMessage((HWND)lParam, (UINT)CB_GETCURSEL, (WPARAM)0, (LPARAM)0) + 1;
+                    if (BookIndex > 66) {
+                        PrintError(TEXT("Book Combo Box index out of range"));
+                        return TRUE;
+                    }
+                    if (BookIndex == 0)
+                    {
+                        PrintError(TEXT("Select a book name from the list"));
+                        return TRUE;
+                    }
+                    if (BookIndex == 38)
+                    {
+                        PrintError(TEXT("Sorry, this book is missing"));
+                        BookIndex = 1;
+                        return TRUE;
+                    }
+                    HWND hWndComboChapter = GetDlgItem(hDlg, IDC_CHAPTER);
+                    err = SendMessage(hWndComboChapter, (UINT)CB_RESETCONTENT, (WPARAM)0, (LPARAM)0);
+                    //				if ( err != CB_OKAY )  MsgBox ("Impossible ComboBox error in MainFrm.");
+                    TempAudio = *(AudioFolderData + BookIndex);
+                    for (k = 1; k <= TempAudio->NumberOfChapters; k++)
+                    {
+                        wsprintf(A, L"%i", k);
+                        // Add string to combobox.
+                        SendMessage(hWndComboChapter, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)A);
+                    }
+
+                    // Send the CB_SETCURSEL message to display an initial item 
+                    //  in the selection field  
+                    SendMessage(hWndComboChapter, CB_SETCURSEL, (WPARAM)0, (LPARAM)0);
+
+                }
+                return TRUE;
+            }		// end of if on LOWORD(wParam) == IDC_COMBO1
+
+        default:
+            return FALSE;
+        }
+    }
+    break;
+
+    case WM_INITDIALOG:
+    {
+        int booknumber;
+        int presentChapter;
+        int chapterIndex;
+        // initialize the book combo
+        hWndComboBoook = GetDlgItem(hDlg, IDC_BOOK);
+        err = SendMessage(hWndComboBoook, (UINT)CB_RESETCONTENT, (WPARAM)0, (LPARAM)0);
+        //				if ( err != CB_OKAY )  MsgBox ("Impossible ComboBox error in MainFrm.");
+        for (k = 1; k < 67; k += 1)
+        {
+            if (Booknames[k] != NULL) {
+                mbstowcs(A, (char*)Booknames[k], strlen(Booknames[k]) + 1);
+            }
+            else {
+                wcscpy(A, L"--missing--");
+            }
+            // Add string to combobox.
+            SendMessage(hWndComboBoook, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)A);
+        }
+        // Send the CB_SETCURSEL message to display the initial book in the selection field
+        chapterIndex = (jackiesfile - 1) % TOTNUMCHAPS;
+        booknumber = (*(ChapterData + chapterIndex))->BookNumber;
+        presentChapter = (*(ChapterData + chapterIndex))->ChapterNumber;
+        SendMessage(hWndComboBoook, CB_SETCURSEL, (WPARAM)(booknumber-1), (LPARAM)0);
+
+        HWND hWndComboChapter = GetDlgItem(hDlg, IDC_CHAPTER);
+        err = SendMessage(hWndComboChapter, (UINT)CB_RESETCONTENT, (WPARAM)0, (LPARAM)0);
+        //				if ( err != CB_OKAY )  MsgBox ("Impossible ComboBox error in MainFrm.");
+
+        // initialize the chapter combo
+        TempAudio = *(AudioFolderData + booknumber);
+        for (k = 1; k <= TempAudio->NumberOfChapters; k ++)
+        {
+            wsprintf(A, L"%i", k);
+            // Add string to combobox.
+            SendMessage(hWndComboChapter, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)A);
+        }
+
+        // Send the CB_SETCURSEL message to display an initial item 
+        //  in the selection field  
+        SendMessage(hWndComboChapter, CB_SETCURSEL, (WPARAM)(presentChapter-1), (LPARAM)0);
+
+        // set the default state of the footnote radio buttons   
+        if (IncludeFootnotes) {
+            hWndFootnoteRadio = GetDlgItem(hDlg, IDC_FOOTNOTEYES);
+        }
+        else {
+            hWndFootnoteRadio = GetDlgItem(hDlg, IDC_FOOTNOTENO);
+        }
+        Button_SetCheck(hWndFootnoteRadio, BST_CHECKED);
+
+        // Set the range of playtime spin control.
+        hWndPlaytimeSpin = GetDlgItem(hDlg, IDC_PLAYTIMESPIN);
+        SendMessage(hWndPlaytimeSpin, UDM_SETRANGE, 0L, MAKELONG((short)3000, (short)0));
+        // Set the initial value of maximum number of backups spin control
+        SendMessage(hWndPlaytimeSpin, UDM_SETPOS, 0L, (TimeoutSetting));
+
+
+        hIcon = (HICON)LoadImage(hInst,
+            MAKEINTRESOURCE(IDI_ICON1),
+            IMAGE_ICON,
+            GetSystemMetrics(SM_CXSMICON),
+            GetSystemMetrics(SM_CYSMICON),
+            0);
+        if (hIcon)
+        {
+            SendMessage(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+        }
+        else {
+            PrintError(TEXT("LoadImage failed"));
+        }
+    }
+    return TRUE;
+
+    default:
+        return (INT_PTR)FALSE;
+    }
+    return 0;
 }

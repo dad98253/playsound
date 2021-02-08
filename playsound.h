@@ -15,6 +15,7 @@
 #define INITBUFFERSIZE
 #define INITDIRSIZE
 #define INITVERNAMELEN
+#define INITTIMEOUT
 #define INITNULLSTRING
 #else  // MAINDEFS
 #define EXTERN
@@ -27,6 +28,7 @@
 #define INITBUFFERSIZE	=BUFFERSIZE
 #define INITDIRSIZE		=DIRSIZE
 #define INITVERNAMELEN  =VERNAMELEN
+#define INITTIMEOUT     =DEFTIMEOUT
 #define INITNULLSTRING  =""
 #endif  // MAINDEFS
 
@@ -36,11 +38,13 @@
 #define TOTNUMCHAPS	1175
 #define TOTNUMCHAPSP1	TOTNUMCHAPS+1
 #define ID_EDITCHILD 1001
+#define DEFTIMEOUT  20
 
 typedef struct ChapterList
 {
 	int						GlobalChapterIndex;
 	int						ChapterNumber;
+	int						BookNumber;
 	char*					Bookname;
 	char*					AudioFilePath;
 	char*					TextFilePath;
@@ -77,6 +81,7 @@ EXTERN char strProductCopyright[VERNAMELEN];
 EXTERN AudioFoldersStructure** AudioFolderData;
 EXTERN TextFoldersStructure** TextFolderData;
 EXTERN ChapterListStructure** ChapterData;
+EXTERN ChapterListStructure* PreviousChapterPointer;
 EXTERN char** Booknames;
 EXTERN HWND hTextWnd INITNULL;
 EXTERN HWND hwndEdit INITNULL;
@@ -91,6 +96,8 @@ EXTERN int lfset INITIZERO;
 EXTERN BOOL FontChanged INITBOOLFALSE;
 EXTERN WINDOWPLACEMENT WinSizeLoc;
 EXTERN BOOL ValidWinSizeLoc INITBOOLFALSE;
+EXTERN BOOL IncludeFootnotes INITBOOLTRUE;
+EXTERN UINT TimeoutSetting INITTIMEOUT;
 
 #ifdef DEBUG
 EXTERN FILE *fdb INITNULL;
