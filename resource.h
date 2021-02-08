@@ -31,6 +31,8 @@
 #define IDC_FOOTNOTENO                  1014
 #define IDC_PLAYTIME                    1015
 #define IDC_PLAYTIMESPIN                1016
+#define IDC_DISPLAYTEXT                 1017
+#define IDC_INCLUDEFOOTNOTES            1018
 #define ID_FILE_PLAY                    32771
 #define ID_FILE_PAUSE                   32772
 #define ID_FILE_CONTINUE                32773
@@ -43,7 +45,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        135
 #define _APS_NEXT_COMMAND_VALUE         32774
-#define _APS_NEXT_CONTROL_VALUE         1017
+#define _APS_NEXT_CONTROL_VALUE         1019
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif

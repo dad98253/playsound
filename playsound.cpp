@@ -89,7 +89,7 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
                         if (TimeoutSetting) TimmerID = SetTimer(hDlg, nID120SecondEvent, TimeoutSetting * 60000, NULL);
                         keepPlaying = 1;
                         // Perform text window initialization:
-                        if (!hTextWnd) {
+                        if (!hTextWnd && IncludeTextWindow) {
                             if (!InitInstance(hInst, globalnCmdShow)) {
                                 PrintError(TEXT("InitInstance failed."));
                             }
@@ -206,7 +206,7 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
     return TRUE;
 
     case WM_CLOSE:
-        if (MessageBox(hDlg, TEXT("Close the program?"), TEXT("Close"),
+        if (MessageBox(hDlg, TEXT("Close the program?"), TEXT("Exit"),
             MB_ICONQUESTION | MB_YESNO) == IDYES)
         {
             DestroyWindow(hDlg);
@@ -471,71 +471,72 @@ int playme()
     if (!FindDirectoryContents()) {
         return(0);
     }
-    // find the text
-    if (foundTextPath != NULL) {
-        pFile = fopen(foundTextPath, "r");
-        if (pFile != NULL)
-        {
-            lpsztext = sztext;
-            while (fgets(ptext, 100000, pFile) != NULL) {
-                int lxx = strlen(ptext);
-                ptext[lxx - 1] = '\r';
-                ptext[lxx] = '\n';
-                ptext[lxx + 1] = '\000';
-                lxx = strlen(ptext);
-                ptext = ptext + lxx;
-            }
-            fclose(pFile);
-            if (!IncludeFootnotes) {
-                ptext = text;
-                char* left;
-                char* right;
-                char* crlf;
-                while (ptext) {
-                    // check for a '{', if none, we are done
-                    if ( !(left = strchr(ptext, '{')) ) break;
-                    // '{' found, find the matching '}', if none, continue
-                    if ( !(right = strchr(left, '}')) ) {
-                        ptext = left + 1;
-                        continue;
-                    }
-                    // found matchinf '}', now check for a '\r' between them
-                    if ( (crlf = strchr(left, '\r')) ) {
-                        if (crlf < right) {
-                            // '\r' found, replace left with a new '\r\n' (unless right+1 = '\r') & increment left past them
-                            if (*(right + 1) != '\r') {
-                                *left = '\r';
-                                left++;
-                                *left = '\n';
-                                left++;
-                                if (*(right + 1) != '[') {
-                                    *left = '\t';
+    if (IncludeTextWindow) {
+        // find the text
+        if (foundTextPath != NULL) {
+            pFile = fopen(foundTextPath, "r");
+            if (pFile != NULL)
+            {
+                lpsztext = sztext;
+                while (fgets(ptext, 100000, pFile) != NULL) {
+                    int lxx = strlen(ptext);
+                    ptext[lxx - 1] = '\r';
+                    ptext[lxx] = '\n';
+                    ptext[lxx + 1] = '\000';
+                    lxx = strlen(ptext);
+                    ptext = ptext + lxx;
+                }
+                fclose(pFile);
+                if (!IncludeFootnotes) {
+                    ptext = text;
+                    char* left;
+                    char* right;
+                    char* crlf;
+                    while (ptext) {
+                        // check for a '{', if none, we are done
+                        if (!(left = strchr(ptext, '{'))) break;
+                        // '{' found, find the matching '}', if none, continue
+                        if (!(right = strchr(left, '}'))) {
+                            ptext = left + 1;
+                            continue;
+                        }
+                        // found matchinf '}', now check for a '\r' between them
+                        if ((crlf = strchr(left, '\r'))) {
+                            if (crlf < right) {
+                                // '\r' found, replace left with a new '\r\n' (unless right+1 = '\r') & increment left past them
+                                if (*(right + 1) != '\r') {
+                                    *left = '\r';
                                     left++;
+                                    *left = '\n';
+                                    left++;
+                                    if (*(right + 1) != '[') {
+                                        *left = '\t';
+                                        left++;
+                                    }
                                 }
                             }
                         }
-                    }
-                    // delete everything from left to the '}' and continue
-                    right++;
-                    ptext = left;
-                    while (*right) {
-                        *left = *right;
-                        left++;
+                        // delete everything from left to the '}' and continue
                         right++;
+                        ptext = left;
+                        while (*right) {
+                            *left = *right;
+                            left++;
+                            right++;
+                        }
+                        *left = '\000';
                     }
-                    *left = '\000';
                 }
+                ptext = text;
+                int num_chars = MultiByteToWideChar(CP_UTF8, 0, ptext, strlen(ptext), NULL, 0);
+                MultiByteToWideChar(CP_UTF8, 0, ptext, strlen(ptext), lpsztext, num_chars);
+                lpsztext[num_chars] = L'\0';
             }
-            ptext = text;
-            int num_chars = MultiByteToWideChar(CP_UTF8, 0, ptext, strlen(ptext), NULL, 0);
-            MultiByteToWideChar(CP_UTF8, 0, ptext, strlen(ptext), lpsztext, num_chars);
-            lpsztext[num_chars] = L'\0';
         }
+        // display the text
+        SetDlgItemText(hTextWnd, ID_EDITCHILD, lpsztext);
+        //    SendMessage(hwndEdit, WM_SETTEXT, 0, (LPARAM)lpsztext);
     }
-    // display the text
-    SetDlgItemText( hTextWnd, ID_EDITCHILD, lpsztext);
-//    SendMessage(hwndEdit, WM_SETTEXT, 0, (LPARAM)lpsztext);
-
     wDeviceID = MCIOpen((LPCTSTR)foundPath);  //Save DeviceID
     opReturn = 0;
     if (wDeviceID != -1)
@@ -562,7 +563,7 @@ int playme()
     SetWindowTextA( hMyWnd, lpTitleString);
     sprintf(tempstr, "%s   Chapter %d", presentBook, presentChapter);
     lpTitleString = tempstr;
-    SetWindowTextA( hTextWnd, lpTitleString);
+    if (IncludeTextWindow) SetWindowTextA( hTextWnd, lpTitleString);
     free(tempstr);
 
     return (int)opReturn;
@@ -602,6 +603,11 @@ int GetConfig(int typeGet)
             StatusReturn = RegQueryValueEx(key, L"Chapter", NULL, &dwtype,
                 (BYTE*)&jackiesfile, &dsize);
             if (StatusReturn) jackiesfile = 915;
+            // get text window setting
+            dsize = sizeof(IncludeTextWindow);
+            StatusReturn = RegQueryValueEx(key, L"IncludeTextWindow", NULL, &dwtype,
+                (BYTE*)&IncludeTextWindow, &dsize);
+            if (StatusReturn) IncludeTextWindow = TRUE;
             // get footnote setting
             dsize = sizeof(IncludeFootnotes);
             StatusReturn = RegQueryValueEx(key, L"IncludeFootnotes", NULL, &dwtype,
@@ -818,7 +824,7 @@ void WriteConfig(int chapter)
     DWORD tempdword;
 
     if (chapter > -1) {
-        // set chapter, footnote, and timeout
+        // set chapter, display text option, footnote, and timeout
         if ((lResult = RegCreateKeyEx(HKEY_CURRENT_USER,
             L"Software\\Island Christian Academy\\PlayMe", //lpctstr
             0,                      //reserved
@@ -838,6 +844,20 @@ void WriteConfig(int chapter)
                 }
                 else {
                     PrintError(TEXT("Error saving chapter key.\n"));
+                    return;
+                }
+            }
+            // save display text
+            if ((lResult = RegSetValueEx(key, L"IncludeTextWindow", 0, REG_DWORD, (const BYTE*)&IncludeTextWindow, (DWORD)sizeof(IncludeTextWindow))) == ERROR_SUCCESS) {
+
+            }
+            else {
+                if (lResult == ERROR_FILE_NOT_FOUND) {
+                    PrintError(TEXT("IncludeTextWindow Key not found - save failed.\n"));
+                    return;
+                }
+                else {
+                    PrintError(TEXT("Error saving IncludeTextWindow key.\n"));
                     return;
                 }
             }
@@ -1540,7 +1560,8 @@ INT_PTR CALLBACK SettingsFM(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
 {
     HICON hIcon;
     HWND hWndComboBoook;
-    HWND hWndFootnoteRadio;
+    HWND hWndIncludeTextCheckbox;
+    HWND hWndFootnoteCheckbox;
     HWND hWndPlaytimeSpin;
     int err;
     wchar_t  A[256];
@@ -1572,9 +1593,18 @@ INT_PTR CALLBACK SettingsFM(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
             chapterIndex = SendMessage(hWndComboChapter, (UINT)CB_GETCURSEL, (WPARAM)0, (LPARAM)0)+1 + StartChapter;
             jackiesfile = chapterIndex;
 
-            // get the state of the footnote radio buttons
-            hWndFootnoteRadio = GetDlgItem(hDlg, IDC_FOOTNOTEYES);
-            if (Button_GetCheck(hWndFootnoteRadio) == BST_CHECKED) {
+            // get the state of the include text checkbox
+            hWndIncludeTextCheckbox = GetDlgItem(hDlg, IDC_DISPLAYTEXT);
+            if (Button_GetCheck(hWndIncludeTextCheckbox) == BST_CHECKED) {
+                IncludeTextWindow = TRUE;
+            }
+            else {
+                IncludeTextWindow = FALSE;
+            }
+
+            // get the state of the footnote checkbox
+            hWndFootnoteCheckbox = GetDlgItem(hDlg, IDC_INCLUDEFOOTNOTES);
+            if (Button_GetCheck(hWndFootnoteCheckbox) == BST_CHECKED) {
                 IncludeFootnotes = TRUE;
             }
             else {
@@ -1685,14 +1715,23 @@ INT_PTR CALLBACK SettingsFM(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
         //  in the selection field  
         SendMessage(hWndComboChapter, CB_SETCURSEL, (WPARAM)(presentChapter-1), (LPARAM)0);
 
-        // set the default state of the footnote radio buttons   
-        if (IncludeFootnotes) {
-            hWndFootnoteRadio = GetDlgItem(hDlg, IDC_FOOTNOTEYES);
+        // set the default state of the display text checkbox  
+        hWndIncludeTextCheckbox = GetDlgItem(hDlg, IDC_DISPLAYTEXT);
+        if (IncludeTextWindow) {
+            Button_SetCheck(hWndIncludeTextCheckbox, BST_CHECKED);
         }
         else {
-            hWndFootnoteRadio = GetDlgItem(hDlg, IDC_FOOTNOTENO);
+            Button_SetCheck(hWndIncludeTextCheckbox, BST_UNCHECKED);
         }
-        Button_SetCheck(hWndFootnoteRadio, BST_CHECKED);
+
+        // set the default state of the include footnote checkbox  
+        hWndFootnoteCheckbox = GetDlgItem(hDlg, IDC_INCLUDEFOOTNOTES);
+        if (IncludeFootnotes) {
+            Button_SetCheck(hWndFootnoteCheckbox, BST_CHECKED);
+        }
+        else {
+            Button_SetCheck(hWndFootnoteCheckbox, BST_UNCHECKED);
+        }
 
         // Set the range of playtime spin control.
         hWndPlaytimeSpin = GetDlgItem(hDlg, IDC_PLAYTIMESPIN);
