@@ -500,7 +500,9 @@ int playme()
                             ptext = left + 1;
                             continue;
                         }
-                        // found matchinf '}', now check for a '\r' between them
+                        // found matching '}', if the next character is a blank, skip over it
+                        if (*(right + 1) == ' ') right++;
+                        // now check for a '\r' between left and right
                         if ((crlf = strchr(left, '\r'))) {
                             if (crlf < right) {
                                 // '\r' found, replace left with a new '\r\n' (unless right+1 = '\r') & increment left past them
@@ -513,6 +515,10 @@ int playme()
                                         *left = '\t';
                                         left++;
                                     }
+                                }
+                                // check for a possible blank line
+                                if (strlen(right) > 3) {
+                                    if (*(right + 1) == '\r' && *(right + 3) == '\r') right += 2;
                                 }
                             }
                         }
