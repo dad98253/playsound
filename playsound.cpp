@@ -93,6 +93,7 @@ INT_PTR CALLBACK  CALLBACK MainFrm(HWND hDlg, UINT message, WPARAM wParam, LPARA
                             if (!InitInstance(hInst, globalnCmdShow)) {
                                 PrintError(TEXT("InitInstance failed."));
                             }
+                            SetFocus(hwndEdit);
                         }
                         playme();
                     }
@@ -797,10 +798,18 @@ int GetConfig(int typeGet)
 
             StatusReturn = RegQueryValueEx(key, L"DataBaseLocation", NULL, &dwtype,
                 (BYTE*)&dbloc, &dsize);
+#ifdef ICA
+            if (StatusReturn) wcscpy(dbloc, L"\\\\server\\NIV\\");
+#else
             if (StatusReturn) wcscpy(dbloc, L"\\\\TURK\\dad\\hdb2\\hdb2\\Bible stuff\\NIV\\");
+#endif
             StatusReturn = RegQueryValueEx(key, L"TextFileLocation", NULL, &dwtype,
                 (BYTE*)&textdbloc, &dtsize);
+#ifdef ICA
+            if (StatusReturn) wcscpy(textdbloc, L"\\\\server\\NIVtext\\");
+#else
             if (StatusReturn) wcscpy(textdbloc, L"\\\\TURK\\dad\\hdb2\\hdb2\\Bible stuff\\NIVtext\\");
+#endif
 
             //Finished with key
             RegCloseKey(key);
@@ -1303,8 +1312,8 @@ bool LoadDirectoryContents(const wchar_t* sDir, int AudioFiles)
     {
         //Find first file will always return "."
         //    and ".." as the first two directories.
-        if (wcscmp(fdFile.cFileName, L".") != 0
-            && wcscmp(fdFile.cFileName, L"..") != 0)
+        // we also check of Apple dropings - they will be hidden files, so we will skip all hidden files!
+        if (wcsncmp(fdFile.cFileName, L".",(size_t)1) != 0)
         {
 #ifdef DEBUG
             fprintf(fdb, "in LoadDirectoryContents, found \"%S\"\n", fdFile.cFileName);
@@ -1441,8 +1450,8 @@ bool LoadSubDirectoryContents(const wchar_t* sDir, int* chapterindex, int booknu
     {
         //Find first file will always return "."
         //    and ".." as the first two directories.
-        if (wcscmp(fdFile.cFileName, L".") != 0
-            && wcscmp(fdFile.cFileName, L"..") != 0)
+        // we also check of Apple dropings - they will be hidden files, so we will skip all hidden files!
+        if (wcsncmp(fdFile.cFileName, L".", (size_t)1) != 0)
         {
 #ifdef DEBUG
             fprintf(fdb, "in LoadSubDirectoryContents, found \"%S\"\n", fdFile.cFileName);

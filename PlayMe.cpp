@@ -85,12 +85,14 @@ int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE h0, LPTSTR lpCmdLine, int nC
     wcscpy(wfile, dbloc);
     wcscpy(foundPath, L"");
     if (!LoadDirectoryContents(wfile, AUDIOFILES)) {
-        return(0);
+        PrintError(TEXT("Audio files not found"));
+        return(1);
     }
     wcscpy(wfile, textdbloc);
     wcscpy(foundPath, L"");
     if (!LoadDirectoryContents(wfile, TEXTFILES)) {
-        return(0);
+        PrintError(TEXT("Text files not found"));
+        return(2);
     }
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
